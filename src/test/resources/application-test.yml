@@ -1,0 +1,29 @@
+# Test-specific configuration
+spring:
+  artemis:
+    mode: embedded
+    embedded:
+      enabled: true
+      persistent: false
+    broker-url: "vm://0?broker.persistent=false"
+  jms:
+    pub-sub-domain: true
+
+# Test logging configuration
+logging:
+  level:
+    root: WARN
+    # Suppress Artemis logs
+    org.apache.activemq.audit: ERROR
+    org.apache.activemq.artemis: WARN
+    # Keep your application logs at INFO
+    vivek.example.kite: INFO
+
+# Test-specific JMS topics
+app:
+  jms:
+    topics:
+      rawTicksHighActivity: "test.raw.ticks.high"
+      rawTicksMediumActivity: "test.raw.ticks.medium"
+      rawTicksLowActivity: "test.raw.ticks.low"
+      aggregatedUpdates: "test.aggregated.updates"
