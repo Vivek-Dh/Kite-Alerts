@@ -3,6 +3,7 @@ package vivek.example.kite.config
 // import org.apache.activemq.ActiveMQConnectionFactory
 import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.jms.ConnectionFactory
+import jakarta.jms.Session
 import org.springframework.boot.autoconfigure.jms.DefaultJmsListenerContainerFactoryConfigurer
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -49,6 +50,8 @@ class JmsConfig {
     configurer.configure(factory, connectionFactory)
     factory.setConcurrency(concurrency)
     factory.setPubSubDomain(true) // This is crucial for listening to topics
+    factory.setSessionAcknowledgeMode(Session.AUTO_ACKNOWLEDGE)
+    factory.setSubscriptionShared(true) // Enable shared subscription
     return factory
   }
 

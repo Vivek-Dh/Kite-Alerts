@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Stock Price Monitor</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- ApexCharts.js for graphing -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom styles for ApexCharts tooltips in dark mode */
+        .apexcharts-tooltip.apexcharts-theme-dark {
+            background: #4B5563; /* gray-600 */
+            border: 1px solid #6B7280; /* gray-500 */
+        }
+        .apexcharts-tooltip.apexcharts-theme-dark .apexcharts-tooltip-title {
+            background: #374151; /* gray-700 */
+            border-bottom: 1px solid #4B5563; /* gray-600 */
+        }
+        .apexcharts-tooltip-series-group {
+            padding: 6px 10px !important;
+        }
+        .apexcharts-tooltip-y-group {
+            padding: 6px 0 !important;
+        }
+        /* Style for the custom line annotations */
+        .apexcharts-point-annotations .apexcharts-text {
+            fill: #fff;
+            font-size: 12px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 antialiased">
+
+<div class="container mx-auto p-4 md:p-8 max-w-7xl">
+
+    <header class="mb-8">
+        <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">Real-Time Stock Price Monitor</h1>
+        <p class="text-gray-400">Visualizing aggregated price window updates via Server-Sent Events (SSE)</p>
+    </header>
+
+    <div class="bg-gray-800 rounded-xl shadow-2xl p-4 md:p-6">
+
+        <!-- Status and Latest Data Section -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <div id="status-indicator" class="flex items-center gap-3 px-4 py-2 rounded-full bg-gray-700">
+                <div id="status-dot" class="w-3 h-3 rounded-full bg-yellow-500 animate-pulse"></div>
+                <span id="status-text" class="font-medium text-yellow-300">Connecting...</span>
+            </div>
+            <div class="text-sm text-gray-400 bg-gray-900 p-3 rounded-lg w-full md:w-auto">
+                <p class="font-mono"><strong class="text-gray-300">Latest Event:</strong> <span id="latest-data">No data received yet.</span></p>
+            </div>
+        </div>
+
+        <!-- Interactive Legend / Controls -->
+        <div class="mb-4 p-4 bg-gray-900/50 rounded-lg">
+            <h3 class="font-bold text-lg mb-3 text-white">Live Stocks</h3>
+            <div id="legend-controls" class="flex flex-wrap gap-x-6 gap-y-3">
+                <div class="flex items-center w-full border-b border-gray-700 pb-3 mb-1">
+                    <input type="checkbox" id="checkbox-all" checked class="w-4 h-4 rounded focus:ring-2 text-blue-500 bg-gray-600 border-gray-500">
+                    <label for="checkbox-all" class="ml-2 text-sm font-bold text-white">Toggle All</label>
+                </div>
+                <p id="legend-placeholder" class="text-gray-500">Waiting for data...</p>
+            </div>
+        </div>
+
+        <!-- Chart Container -->
+        <div id="chart" class="w-full h-96 md:h-[500px]"></div>
+
+    </div>
+
+    <footer class="text-center mt-8 text-gray-500 text-sm">
+        <p>Powered by Spring Boot, Kotlin, ActiveMQ, and ApexCharts.js</p>
+    </footer>
+
+</div>
+
+<script>
+    // --- CONFIGURATION ---
+    const SSE_ENDPOINT = 'http://localhost:8080/api/v1/prices/stream/aggregated';
+    const MAX_DATA_POINTS = 60;
+
+    // --- DOM ELEMENTS ---
+    const chartElement = document.querySelector("#chart");
+    const statusDot = document.querySelector("#status-dot");
+    const statusText = document.querySelector("#status-text");
+    const latestDataElement = document.querySelector("#latest-data");
+    const legendControls = document.querySelector("#legend-controls");
+    const legendPlaceholder = document.querySelector("#legend-placeholder");
+    const selectAllCheckbox = document.querySelector("#checkbox-all");
+
+    // --- CHART STATE ---
+    let stockData = {};
+    let visibleSeries = new Set();
+
+    // --- APEXCHARTS OPTIONS ---
+    const options = {
+        series: [],
+        chart: {
+            type: 'line',
+            height: '100%',
+            animations: {
+                enabled: true,
+                easing: 'linear',
+                dynamicAnimation: {
+                    speed: 1000
+                }
+            },
+            toolbar: { show: true },
+            zoom: { enabled: true }
+        },
+        colors: ['#008FFB', '#00E396', '#FEB019', '#FF4560', '#775DD0', '#546E7A', '#26a69a', '#D10CE8', '#FF66C3', '#4ECDC4'],
+        xaxis: {
+            type: 'datetime',
+            labels: {
+                style: { colors: '#9CA3AF' },
+                datetimeUTC: false,
+            },
+            axisBorder: { color: '#4B5563' },
+            axisTicks: { color: '#4B5563' }
+        },
+        yaxis: {
+            labels: {
+                style: { colors: '#9CA3AF' },
+                formatter: (value) => `₹${value.toFixed(2)}`
+            },
+            tooltip: { enabled: true }
+        },
+        dataLabels: {
+            enabled: false
+        },
+        stroke: {
+            curve: 'smooth',
+            width: 2
+        },
+        markers: {
+            size: 4,
+            strokeWidth: 0,
+            hover: {
+                size: 7
+            }
+        },
+        tooltip: {
+            theme: 'dark',
+            x: {
+                format: 'dd MMM yyyy - HH:mm:ss'
+            },
+            custom: function({ series, seriesIndex, dataPointIndex, w }) {
+                const pointData = w.globals.initialSeries[seriesIndex].data[dataPointIndex];
+                if (!pointData) return '';
+
+                const avg = pointData.y.toFixed(2);
+                const high = pointData.high.toFixed(2);
+                const low = pointData.low.toFixed(2);
+                const seriesName = w.globals.seriesNames[seriesIndex];
+                const seriesColor = w.globals.colors[seriesIndex];
+
+                return `<div class="p-2 bg-gray-700 border border-gray-600 rounded-lg">
+                                <div class="font-bold mb-1" style="color: ${seriesColor};">${seriesName}</div>
+                                <div><span class="font-medium text-gray-300">Avg:</span> <span class="font-bold text-white">₹${avg}</span></div>
+                                <div><span class="font-medium text-gray-300">High:</span> <span class="text-gray-400">₹${high}</span></div>
+                                <div><span class="font-medium text-gray-300">Low:</span> <span class="text-gray-400">₹${low}</span></div>
+                            </div>`;
+            }
+        },
+        grid: {
+            borderColor: '#4B5563',
+            strokeDashArray: 4
+        },
+        legend: {
+            show: false
+        },
+        theme: {
+            mode: 'dark'
+        },
+        annotations: {
+            points: []
+        }
+    };
+
+    // Initialize the chart
+    const chart = new ApexCharts(chartElement, options);
+    chart.render();
+
+    // --- SSE CONNECTION LOGIC ---
+    function connectToSse() {
+        console.log("Attempting to connect to SSE endpoint...");
+        const eventSource = new EventSource(SSE_ENDPOINT);
+
+        eventSource.onopen = function(event) {
+            console.log("SSE connection established.");
+            statusDot.className = 'w-3 h-3 rounded-full bg-green-500';
+            statusText.textContent = 'Connected';
+            statusText.className = 'font-medium text-green-400';
+        };
+
+        eventSource.onerror = function(event) {
+            console.error("SSE connection error:", event);
+            statusDot.className = 'w-3 h-3 rounded-full bg-red-500 animate-pulse';
+            statusText.textContent = 'Disconnected';
+            statusText.className = 'font-medium text-red-400';
+        };
+
+        eventSource.addEventListener('aggregated-price-update', function(event) {
+            try {
+                const data = JSON.parse(event.data);
+                latestDataElement.textContent = `[${data.symbol}] Low: ${data.low.toFixed(2)}, High: ${data.high.toFixed(2)}`;
+                updateChartData(data);
+            } catch (e) {
+                console.error("Failed to parse SSE data:", e);
+            }
+        });
+    }
+
+    // --- CHART UPDATE LOGIC ---
+    function updateChartData(data) {
+        const { symbol, windowEndTime, low, high } = data;
+
+        const average = (low + high) / 2;
+        const newDataPoint = {
+            x: windowEndTime,
+            y: average,
+            low: low,
+            high: high
+        };
+
+        const isNewStock = !stockData[symbol];
+        if (isNewStock) {
+            stockData[symbol] = [];
+            visibleSeries.add(symbol);
+            createLegendCheckbox(symbol);
+        }
+
+        stockData[symbol].push(newDataPoint);
+
+        if (stockData[symbol].length > MAX_DATA_POINTS) {
+            stockData[symbol].shift();
+        }
+
+        // FIX: Preserve zoom state
+        const minX = chart.w.globals.minX;
+        const maxX = chart.w.globals.maxX;
+        const isZoomed = chart.w.globals.zoomed;
+
+        const seriesToShow = Array.from(visibleSeries).map(s => ({
+            name: s,
+            data: stockData[s] || []
+        }));
+
+        const newAnnotations = {
+            points: Array.from(visibleSeries).map(s => {
+                const seriesData = stockData[s];
+                // FIX: Place annotation on the second-to-last point for stability
+                if (!seriesData || seriesData.length < 2) return {};
+                const annotationPoint = seriesData[seriesData.length - 2];
+                const seriesIndex = Object.keys(stockData).indexOf(s);
+                const color = options.colors[seriesIndex % options.colors.length];
+
+                return {
+                    x: annotationPoint.x,
+                    y: annotationPoint.y,
+                    marker: { size: 0 },
+                    label: {
+                        borderColor: color,
+                        offsetY: 0,
+                        offsetX: 20,
+                        style: {
+                            color: '#fff',
+                            background: color,
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            padding: { left: 5, right: 5, top: 2, bottom: 2 }
+                        },
+                        text: s,
+                    }
+                };
+            })
+        };
+
+        chart.updateOptions({
+            series: seriesToShow,
+            annotations: newAnnotations
+        }, false, true, false).then(() => { // (options, redraw, animate, updateSyncedCharts)
+            // FIX: Re-apply zoom after the update is complete
+            if (isZoomed) {
+                chart.zoomX(minX, maxX);
+            }
+        });
+    }
+
+    // --- INTERACTIVE LEGEND LOGIC ---
+    function createLegendCheckbox(symbol) {
+        if (legendPlaceholder) {
+            legendPlaceholder.style.display = 'none';
+        }
+
+        const seriesIndex = Object.keys(stockData).length - 1;
+        const color = options.colors[seriesIndex % options.colors.length];
+
+        const controlWrapper = document.createElement('div');
+        controlWrapper.className = 'flex items-center';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = true;
+        checkbox.id = `checkbox-${symbol}`;
+        checkbox.value = symbol;
+        checkbox.className = 'symbol-checkbox w-4 h-4 rounded focus:ring-2';
+        checkbox.style.accentColor = color;
+
+        checkbox.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                visibleSeries.add(symbol);
+            } else {
+                visibleSeries.delete(symbol);
+            }
+            updateVisibleChartSeries();
+            updateSelectAllCheckboxState();
+        });
+
+        const label = document.createElement('label');
+        label.htmlFor = `checkbox-${symbol}`;
+        label.className = 'ml-2 text-sm font-medium text-gray-300 flex items-center gap-2 cursor-pointer';
+
+        const colorDot = document.createElement('span');
+        colorDot.className = 'w-3 h-3 rounded-full';
+        colorDot.style.backgroundColor = color;
+
+        label.appendChild(colorDot);
+        label.appendChild(document.createTextNode(symbol));
+
+        controlWrapper.appendChild(checkbox);
+        controlWrapper.appendChild(label);
+
+        legendControls.appendChild(controlWrapper);
+    }
+
+    function toggleAllSeries(e) {
+        const isChecked = e.target.checked;
+        const allSymbols = Object.keys(stockData);
+
+        if (isChecked) {
+            allSymbols.forEach(s => visibleSeries.add(s));
+        } else {
+            visibleSeries.clear();
+        }
+
+        document.querySelectorAll('.symbol-checkbox').forEach(cb => cb.checked = isChecked);
+        updateVisibleChartSeries();
+    }
+
+    function updateVisibleChartSeries() {
+        const seriesToShow = Array.from(visibleSeries).map(s => ({
+            name: s,
+            data: stockData[s] || []
+        }));
+
+        const newAnnotations = {
+            points: Array.from(visibleSeries).map(s => {
+                const seriesData = stockData[s];
+                if (!seriesData || seriesData.length < 2) return {};
+                const annotationPoint = seriesData[seriesData.length - 2];
+                const seriesIndex = Object.keys(stockData).indexOf(s);
+                const color = options.colors[seriesIndex % options.colors.length];
+
+                return {
+                    x: annotationPoint.x,
+                    y: annotationPoint.y,
+                    marker: { size: 0 },
+                    label: {
+                        borderColor: color,
+                        offsetY: 0,
+                        offsetX: 20,
+                        style: {
+                            color: '#fff',
+                            background: color,
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            padding: { left: 5, right: 5, top: 2, bottom: 2 }
+                        },
+                        text: s,
+                    }
+                };
+            })
+        };
+
+        chart.updateOptions({
+            series: seriesToShow,
+            annotations: newAnnotations
+        }, false, true);
+    }
+
+    function updateSelectAllCheckboxState() {
+        const total = Object.keys(stockData).length;
+        const checkedCount = visibleSeries.size;
+
+        if (checkedCount === 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        } else if (checkedCount === total) {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+        } else {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = true;
+        }
+    }
+
+    selectAllCheckbox.addEventListener('change', toggleAllSeries);
+
+    // --- START THE APPLICATION ---
+    connectToSse();
+
+</script>
+</body>
+</html>

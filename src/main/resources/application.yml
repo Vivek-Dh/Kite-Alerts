@@ -19,8 +19,9 @@ spring:
     broker-url: "vm://0?broker.persistent=false"
   jms:
     pub-sub-domain: true # Default to topics for listeners unless overridden in factory
-    cache:
-      enabled: true
+    listener:
+      session:
+        acknowledge-mode: auto
 
 app:
   # Configuration for JMS destinations
@@ -53,12 +54,12 @@ app:
     # Configuration for the Window Aggregator
   windowAggregator:
     enabled: true
-    timerCheckIntervalMillis: 50 # How often to check for closable windows
+    timerCheckIntervalMillis: 5000 # How often to check for closable windows
     # Window durations per category
     windowDurationMillis:
-      HIGH_ACTIVITY: 250
-      MEDIUM_ACTIVITY: 500
-      LOW_ACTIVITY: 1000
+      HIGH_ACTIVITY: 1000
+      MEDIUM_ACTIVITY: 2000
+      LOW_ACTIVITY: 3000
       # Concurrency settings for JMS listeners per category
     listenerConcurrency:
       HIGH_ACTIVITY: "5-10"
@@ -66,7 +67,11 @@ app:
       LOW_ACTIVITY: "1-5"
 
 logging:
+  pattern:
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%-5level]){level} %clr(%-40.40logger{39}){cyan} %clr([%15.40thread]){blue} %clr(:){faint} %replace(%msg){'(?i)(Published aggregated window for)','\u001B[35mPublished aggregated window for\u001B[0m'}%n"
   level:
     # Suppress Artemis logs
     org.apache.activemq.audit: ERROR
     org.apache.activemq.artemis: WARN
+    vivek.example.kite.tickprocessor.service.MockTickProducer: INFO
+    vivek.example.kite.tickprocessor.service.WindowAggregator: INFO
