@@ -20,7 +20,7 @@ logging:
     vivek.example.kite: INFO
 
 # Test-specific JMS topics
-app:
+tick-processor:
   jms:
     topics:
       rawTicksHighActivity: "test.raw.ticks.high"

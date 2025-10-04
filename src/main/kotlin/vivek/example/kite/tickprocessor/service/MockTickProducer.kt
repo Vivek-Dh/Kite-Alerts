@@ -12,7 +12,7 @@ import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Profile
 import org.springframework.jms.core.JmsTemplate
 import org.springframework.stereotype.Service
-import vivek.example.kite.config.AppProperties
+import vivek.example.kite.tickprocessor.config.TickProcessorProperties
 import vivek.example.kite.tickprocessor.model.TickData
 import vivek.example.kite.tickprocessor.util.PriceSimulator
 
@@ -20,7 +20,7 @@ import vivek.example.kite.tickprocessor.util.PriceSimulator
 @Profile("!test")
 class MockTickProducer(
     @Qualifier("jmsTopicTemplate") private val jmsTopicTemplate: JmsTemplate,
-    private val appProperties: AppProperties
+    private val tickProcessorProperties: TickProcessorProperties
 ) {
   private val logger = LoggerFactory.getLogger(javaClass)
   private val producerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -36,7 +36,7 @@ class MockTickProducer(
 
   @PostConstruct
   fun init() {
-    if (!appProperties.mockProducer.enabled) {
+    if (!tickProcessorProperties.mockProducer.enabled) {
       logger.info("MockTickProducer is disabled.")
       return
     }
@@ -45,7 +45,7 @@ class MockTickProducer(
   }
 
   private fun initializeStockStates() {
-    appProperties.mockProducer.stockCategories.values.flatten().forEach { symbol ->
+    tickProcessorProperties.mockProducer.stockCategories.values.flatten().forEach { symbol ->
       val initialPrice =
           Random.nextDouble(100.0, 500.0).toBigDecimal().setScale(2, RoundingMode.HALF_UP)
       stockStateMap[symbol] =
@@ -54,13 +54,13 @@ class MockTickProducer(
               minOverallPrice = initialPrice * BigDecimal("0.7"),
               maxOverallPrice = initialPrice * BigDecimal("1.3"),
               driftBias = 0.0,
-              ticksUntilDriftChange = appProperties.mockProducer.driftUpdateTicks)
+              ticksUntilDriftChange = tickProcessorProperties.mockProducer.driftUpdateTicks)
     }
   }
 
   private fun startProducers() {
-    appProperties.mockProducer.stockCategories.forEach { (category, symbols) ->
-      val frequency = appProperties.mockProducer.frequencyMillis[category]
+    tickProcessorProperties.mockProducer.stockCategories.forEach { (category, symbols) ->
+      val frequency = tickProcessorProperties.mockProducer.frequencyMillis[category]
       if (frequency == null) {
         logger.warn("No frequency defined for category $category. Skipping.")
         return@forEach
@@ -73,7 +73,7 @@ class MockTickProducer(
 
   private suspend fun produceTicksForSymbol(symbol: String, category: String, frequency: Long) {
     val state = stockStateMap[symbol] ?: return
-    val props = appProperties.mockProducer
+    val props = tickProcessorProperties.mockProducer
     val topicName = getTopicForCategory(category)
 
     var tickCounter = 0L
@@ -123,9 +123,9 @@ class MockTickProducer(
 
   private fun getTopicForCategory(category: String): String {
     return when (category) {
-      "HIGH_ACTIVITY" -> appProperties.jms.topics.rawTicksHighActivity
-      "MEDIUM_ACTIVITY" -> appProperties.jms.topics.rawTicksMediumActivity
-      "LOW_ACTIVITY" -> appProperties.jms.topics.rawTicksLowActivity
+      "HIGH_ACTIVITY" -> tickProcessorProperties.jms.topics.rawTicksHighActivity
+      "MEDIUM_ACTIVITY" -> tickProcessorProperties.jms.topics.rawTicksMediumActivity
+      "LOW_ACTIVITY" -> tickProcessorProperties.jms.topics.rawTicksLowActivity
       else -> throw IllegalArgumentException("Unknown category: $category")
     }
   }

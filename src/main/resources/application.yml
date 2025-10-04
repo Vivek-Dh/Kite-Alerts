@@ -23,7 +23,7 @@ spring:
       session:
         acknowledge-mode: auto
 
-app:
+tick-processor:
   # Configuration for JMS destinations
   jms:
     # Raw ticks are now topics to allow multiple services (Aggregator, PriceStreamService) to consume them
@@ -65,6 +65,16 @@ app:
       HIGH_ACTIVITY: "5-10"
       MEDIUM_ACTIVITY: "3-8"
       LOW_ACTIVITY: "1-5"
+  # --- Price Stream Service Configuration ---
+  priceStream:
+    listenerConcurrency: "1-2" # Lower concurrency for the UI stream is fine
+
+
+ams:
+  # This instance is responsible for these specific stock symbols.
+  # In a real system, this would be managed by a config server or env variables.
+  assignedSymbols: ["RELIANCE", "TCS", "INFY", "HDFCBANK", "KOTAKBANK", "NESTLEIND"]
+  listenerConcurrency: "5-10" # Concurrency for the main alert matching logic
 
 logging:
   pattern:

@@ -38,29 +38,29 @@ class PriceStreamService {
 
   // Listener for aggregated data, feeding the aggregated stream
   @JmsListener(
-      destination = "\${app.jms.topics.aggregatedUpdates}",
-      containerFactory = "jmsListenerContainerFactory")
+      destination = "\${tick-processor.jms.topics.aggregatedUpdates}",
+      containerFactory = "priceStreamListenerFactory")
   fun receiveAggregatedUpdate(update: AggregatedLHWindow) {
     runBlocking { _aggregatedPriceUpdates.emit(update) }
   }
 
   // Listeners for raw tick data, feeding the individual raw tick streams
   @JmsListener(
-      destination = "\${app.jms.topics.rawTicksHighActivity}",
+      destination = "\${tick-processor.jms.topics.rawTicksHighActivity}",
       containerFactory = "highActivityFactory")
   fun receiveHighActivityRawTick(tick: TickData) {
     processRawTick(tick)
   }
 
   @JmsListener(
-      destination = "\${app.jms.topics.rawTicksMediumActivity}",
+      destination = "\${tick-processor.jms.topics.rawTicksMediumActivity}",
       containerFactory = "mediumActivityFactory")
   fun receiveMediumActivityRawTick(tick: TickData) {
     processRawTick(tick)
   }
 
   @JmsListener(
-      destination = "\${app.jms.topics.rawTicksLowActivity}",
+      destination = "\${tick-processor.jms.topics.rawTicksLowActivity}",
       containerFactory = "lowActivityFactory")
   fun receiveLowActivityRawTick(tick: TickData) {
     processRawTick(tick)

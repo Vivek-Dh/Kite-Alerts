@@ -10,14 +10,14 @@ import org.springframework.jms.annotation.JmsListener
 import org.springframework.jms.core.JmsTemplate
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
-import vivek.example.kite.config.AppProperties
+import vivek.example.kite.tickprocessor.config.TickProcessorProperties
 import vivek.example.kite.tickprocessor.model.AggregatedLHWindow
 import vivek.example.kite.tickprocessor.model.TickData
 
 @Service
 class WindowAggregator(
     @Qualifier("jmsTopicTemplate") private val jmsTopicTemplate: JmsTemplate,
-    private val appProperties: AppProperties,
+    private val tickProcessorProperties: TickProcessorProperties,
     private val taskExecutor: Executor
 ) {
   private val logger = LoggerFactory.getLogger(javaClass)
@@ -25,7 +25,7 @@ class WindowAggregator(
   private val windowStartTimes = ConcurrentHashMap<String, Long>()
 
   @JmsListener(
-      destination = "\${app.jms.topics.rawTicksHighActivity}",
+      destination = "\${tick-processor.jms.topics.rawTicksHighActivity}",
       containerFactory = "highActivityFactory",
       subscription = "highActivitySubscription")
   fun handleHighActivityTick(tick: TickData) {
@@ -33,7 +33,7 @@ class WindowAggregator(
   }
 
   @JmsListener(
-      destination = "\${app.jms.topics.rawTicksMediumActivity}",
+      destination = "\${tick-processor.jms.topics.rawTicksMediumActivity}",
       containerFactory = "mediumActivityFactory",
       subscription = "mediumActivitySubscription")
   fun handleMediumActivityTick(tick: TickData) {
@@ -41,7 +41,7 @@ class WindowAggregator(
   }
 
   @JmsListener(
-      destination = "\${app.jms.topics.rawTicksLowActivity}",
+      destination = "\${tick-processor.jms.topics.rawTicksLowActivity}",
       containerFactory = "lowActivityFactory",
       subscription = "lowActivitySubscription")
   fun handleLowActivityTick(tick: TickData) {
@@ -70,7 +70,7 @@ class WindowAggregator(
     logger.debug("Added tick to buffer: {}", tick)
   }
 
-  @Scheduled(fixedRateString = "\${app.windowAggregator.timerCheckIntervalMillis}")
+  @Scheduled(fixedRateString = "\${tick-processor.windowAggregator.timerCheckIntervalMillis}")
   fun processWindows() {
     val currentTime = System.currentTimeMillis()
     val symbolsToProcess = windowStartTimes.keys.toList() // Take a snapshot of current symbols
@@ -82,7 +82,8 @@ class WindowAggregator(
 
   private fun processSymbolWindows(symbol: String, currentTime: Long) {
     val category = getCategoryForSymbol(symbol) ?: return
-    val windowDuration = appProperties.windowAggregator.windowDurationMillis[category] ?: return
+    val windowDuration =
+        tickProcessorProperties.windowAggregator.windowDurationMillis[category] ?: return
 
     // Get the buffer and start time atomically
     val buffer = tickBuffers[symbol] ?: return
@@ -132,16 +133,16 @@ class WindowAggregator(
             high = high,
             ticksCount = ticks.size)
 
-    jmsTopicTemplate.convertAndSend(appProperties.jms.topics.aggregatedUpdates, aggregatedWindow) {
-        message ->
-      message.setStringProperty("stockSymbol", symbol)
-      message
-    }
+    jmsTopicTemplate.convertAndSend(
+        tickProcessorProperties.jms.topics.aggregatedUpdates, aggregatedWindow) { message ->
+          message.setStringProperty("stockSymbol", symbol)
+          message
+        }
     logger.info("Published aggregated window for $symbol: L=$low, H=$high over ${ticks.size} ticks")
   }
 
   private fun getCategoryForSymbol(symbol: String): String? {
-    return appProperties.mockProducer.stockCategories.entries
+    return tickProcessorProperties.mockProducer.stockCategories.entries
         .find { it.value.contains(symbol) }
         ?.key
   }

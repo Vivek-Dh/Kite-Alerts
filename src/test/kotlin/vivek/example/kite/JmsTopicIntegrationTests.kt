@@ -19,7 +19,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.jms.core.JmsTemplate
 import org.springframework.jms.support.converter.MessageConverter
 import org.springframework.test.context.ActiveProfiles
-import vivek.example.kite.config.AppProperties
+import vivek.example.kite.tickprocessor.config.TickProcessorProperties
 import vivek.example.kite.tickprocessor.model.AggregatedLHWindow
 import vivek.example.kite.tickprocessor.model.TickData
 
@@ -31,14 +31,14 @@ class JmsTopicIntegrationTests {
 
   @Autowired @Qualifier("jmsTopicTemplate") private lateinit var jmsTopicTemplate: JmsTemplate
 
-  @Autowired private lateinit var appProperties: AppProperties
+  @Autowired private lateinit var tickProcessorProperties: TickProcessorProperties
 
   @Autowired private lateinit var messageConverter: MessageConverter
 
   @Test
   @Order(1)
   fun `should publish a message to a raw tick topic and consume it successfully`() {
-    val testTopic = appProperties.jms.topics.rawTicksHighActivity
+    val testTopic = tickProcessorProperties.jms.topics.rawTicksHighActivity
     val testTick = createTestTick("reliance-2500.50", "2500.50")
     val receivedFuture = CompletableFuture<TickData>()
 
@@ -60,7 +60,7 @@ class JmsTopicIntegrationTests {
   @Test
   @Order(2)
   fun `late-joining consumer should miss messages sent before it subscribed`() {
-    val testTopic = appProperties.jms.topics.rawTicksHighActivity
+    val testTopic = tickProcessorProperties.jms.topics.rawTicksHighActivity
     val tick1 = createTestTick("reliance-2500.50", "2500.50")
     val tick2 = createTestTick("reliance-2501.00", "2501.00", 2100)
 
@@ -119,7 +119,7 @@ class JmsTopicIntegrationTests {
   @Test
   @Order(3)
   fun `duplicate messages consumed by topic should be ignored for processing`() {
-    val testTopic = appProperties.jms.topics.rawTicksHighActivity
+    val testTopic = tickProcessorProperties.jms.topics.rawTicksHighActivity
     val symbol = "RELIANCE"
     val tickId = "$symbol-1-${System.currentTimeMillis()}"
     val price = "2500.50"
@@ -142,7 +142,7 @@ class JmsTopicIntegrationTests {
       withSession(connection) { session ->
         val consumer =
             session.createConsumer(
-                session.createTopic(appProperties.jms.topics.aggregatedUpdates),
+                session.createTopic(tickProcessorProperties.jms.topics.aggregatedUpdates),
                 "stockSymbol = '$symbol'" // Changed from "symbol" to "stockSymbol"
                 )
 
