@@ -12,19 +12,26 @@ import java.util.concurrent.atomic.AtomicReference
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Order
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.annotation.Import
 import org.springframework.jms.core.JmsTemplate
 import org.springframework.jms.support.converter.MessageConverter
 import org.springframework.test.context.ActiveProfiles
+import org.springframework.test.context.TestPropertySource
+import vivek.example.kite.ams.shard.AmsTestConfig
 import vivek.example.kite.tickprocessor.config.TickProcessorProperties
 import vivek.example.kite.tickprocessor.model.AggregatedLHWindow
 import vivek.example.kite.tickprocessor.model.TickData
 
 @SpringBootTest
 @ActiveProfiles("test")
+@TestPropertySource(locations = ["classpath:application-test.yml"])
+@Import(AmsTestConfig::class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class JmsTopicIntegrationTests {
 
   private val logger = LoggerFactory.getLogger(javaClass)
@@ -223,7 +230,8 @@ class JmsTopicIntegrationTests {
       session.createConsumer(session.createTopic(topicName)).apply {
         messageListener = MessageListener { message ->
           val tick = messageConverter.fromMessage(message) as TickData
-          logger.info("Consumer ${this.messageSelector} received tick: $tick")
+          // Corrected the log statement to remove the null messageSelector
+          logger.info("Consumer for topic '$topicName' received tick: $tick")
           messageHandler(tick)
         }
         logger.info("Consumer is now listening on topic: $topicName")

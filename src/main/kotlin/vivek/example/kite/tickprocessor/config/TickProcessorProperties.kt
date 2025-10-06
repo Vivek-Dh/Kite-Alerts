@@ -1,44 +1,38 @@
 package vivek.example.kite.tickprocessor.config
 
 import org.springframework.boot.context.properties.ConfigurationProperties
-import org.springframework.stereotype.Component
 
-@Component
 @ConfigurationProperties(prefix = "tick-processor")
-class TickProcessorProperties {
-  lateinit var jms: JmsProperties
-  lateinit var mockProducer: MockProducerProperties
-  lateinit var windowAggregator: WindowAggregatorProperties
-  lateinit var priceStream: PriceStreamProperties
+data class TickProcessorProperties(
+    val jms: JmsProperties,
+    val mockProducer: MockProducerProperties,
+    val windowAggregator: WindowAggregatorProperties,
+    val priceStream: PriceStreamProperties
+)
 
-  class JmsProperties {
-    lateinit var topics: Topics
+data class JmsProperties(val topics: Topics)
 
-    class Topics {
-      lateinit var rawTicksHighActivity: String
-      lateinit var rawTicksMediumActivity: String
-      lateinit var rawTicksLowActivity: String
-      lateinit var aggregatedUpdates: String
-    }
-  }
+data class Topics(
+    val rawTicksHighActivity: String,
+    val rawTicksMediumActivity: String,
+    val rawTicksLowActivity: String,
+    val aggregatedUpdates: String
+)
 
-  class MockProducerProperties {
-    var enabled: Boolean = true
-    lateinit var stockCategories: Map<String, List<String>>
-    var tickVolatility: Double = 0.005
-    var driftUpdateTicks: Int = 1000
-    var driftBiasRange: Double = 0.1
-    lateinit var frequencyMillis: Map<String, Long>
-  }
+data class MockProducerProperties(
+    val enabled: Boolean = true,
+    val stockCategories: Map<String, List<String>>,
+    var tickVolatility: Double = 0.005,
+    var driftUpdateTicks: Int = 1000,
+    var driftBiasRange: Double = 0.1,
+    val frequencyMillis: Map<String, Long>
+)
 
-  class WindowAggregatorProperties {
-    var enabled: Boolean = true
-    var timerCheckIntervalMillis: Long = 50
-    lateinit var windowDurationMillis: Map<String, Long>
-    lateinit var listenerConcurrency: Map<String, String>
-  }
+data class WindowAggregatorProperties(
+    val enabled: Boolean = true,
+    val timerCheckIntervalMillis: Long = 50,
+    val windowDurationMillis: Map<String, Long>,
+    val listenerConcurrency: Map<String, String>
+)
 
-  class PriceStreamProperties {
-    lateinit var listenerConcurrency: String
-  }
-}
+data class PriceStreamProperties(val listenerConcurrency: String)

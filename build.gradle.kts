@@ -32,8 +32,14 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
 
+    // Library for a robust, non-cryptographic hash function (MurmurHash3)
+    implementation("com.google.guava:guava:33.2.1-jre")
+
     // Test dependencies
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    // Awaitility for asynchronous testing
+    testImplementation("org.awaitility:awaitility-kotlin:4.2.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     testImplementation(kotlin("test"))
 }
 

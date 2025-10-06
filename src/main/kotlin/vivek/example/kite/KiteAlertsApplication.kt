@@ -7,11 +7,7 @@ import org.springframework.jms.annotation.EnableJms
 
 @SpringBootApplication
 @EnableJms
-@ConfigurationPropertiesScan(
-    "vivek.example.kite.config",
-    "vivek.example.kite.tickprocessor.config",
-    "vivek.example.kite.ams.config" // Add ams config to scan path
-    )
+@ConfigurationPropertiesScan(basePackages = ["vivek.example.kite"])
 class KiteAlertsApplication
 
 fun main(args: Array<String>) {

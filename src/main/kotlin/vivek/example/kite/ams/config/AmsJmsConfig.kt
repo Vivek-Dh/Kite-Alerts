@@ -1,22 +1,31 @@
 package vivek.example.kite.ams.config
 
 import jakarta.jms.ConnectionFactory
+import jakarta.jms.Session
 import org.springframework.boot.autoconfigure.jms.DefaultJmsListenerContainerFactoryConfigurer
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.jms.config.DefaultJmsListenerContainerFactory
-import vivek.example.kite.config.JmsConfig
 
 @Configuration
 class AmsJmsConfig {
 
-  @Bean
-  fun amsListenerFactory(
+  /**
+   * A generic listener container factory for AMS shards. This bean provides the common baseline
+   * configuration (e.g., pub/sub domain, shared subscription). The ShardManager will use this as a
+   * template to create specific, customized listener containers for each shard at runtime.
+   */
+  @Bean("amsListenerContainerFactory")
+  fun amsListenerContainerFactory(
       connectionFactory: ConnectionFactory,
       configurer: DefaultJmsListenerContainerFactoryConfigurer,
-      amsProperties: AmsProperties
   ): DefaultJmsListenerContainerFactory {
-    return JmsConfig.Factory.topicListenerFactory(
-        connectionFactory, configurer, amsProperties.listenerConcurrency)
+    val factory = DefaultJmsListenerContainerFactory()
+    configurer.configure(factory, connectionFactory)
+    factory.setPubSubDomain(true)
+    factory.setSessionAcknowledgeMode(Session.AUTO_ACKNOWLEDGE) // As per original config
+    factory.setSubscriptionShared(
+        true) // Enable shared subscription for load balancing across real instances
+    return factory
   }
 }

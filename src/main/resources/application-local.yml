@@ -1,0 +1,95 @@
+server:
+  port: 8080
+
+spring:
+  config:
+    activate:
+      on-profile: local
+  artemis:
+    mode: embedded
+    embedded:
+      enabled: true
+      persistent: false
+    broker-url: "vm://0?broker.persistent=false"
+  jms:
+    pub-sub-domain: true # Default to topics for listeners unless overridden in factory
+    listener:
+      session:
+        acknowledge-mode: auto
+
+common:
+  aggregatedUpdatesTopic: "AGGREGATED_LH_STOCK_UPDATES_TOPIC"
+  stocks: [ "RELIANCE", "HDFCBANK", "ICICIBANK", "INFY", "TCS", "SBIN", "KOTAKBANK", "WIPRO", "ASIANPAINT", "NESTLEIND" ]
+
+tick-processor:
+  # Configuration for JMS destinations
+  jms:
+    # Raw ticks are now topics to allow multiple services (Aggregator, PriceStreamService) to consume them
+    topics:
+      rawTicksHighActivity: "RAW_TICKS_TOPIC.HIGH_ACTIVITY"
+      rawTicksMediumActivity: "RAW_TICKS_TOPIC.MEDIUM_ACTIVITY"
+      rawTicksLowActivity: "RAW_TICKS_TOPIC.LOW_ACTIVITY"
+      aggregatedUpdates: "AGGREGATED_LH_STOCK_UPDATES_TOPIC"
+
+    # Configuration for the Mock Tick Producer
+  mockProducer:
+    enabled: true
+    # Stock categories mapping. This drives which topic the ticks are sent to.
+    stockCategories:
+      HIGH_ACTIVITY: [ "RELIANCE", "HDFCBANK", "ICICIBANK" ]
+      MEDIUM_ACTIVITY: [ "INFY", "TCS", "SBIN", "KOTAKBANK" ]
+      LOW_ACTIVITY: [ "WIPRO", "ASIANPAINT", "NESTLEIND" ]
+      # Price simulation parameters
+    tickVolatility: 0.005 # 0.5%
+    driftUpdateTicks: 1000 # Change drift bias every 1000 ticks
+    driftBiasRange: 0.1 # New drift bias will be between -0.1 and +0.1
+    # Throughput control per category
+    frequencyMillis:
+      HIGH_ACTIVITY: 50   # ~20 ticks/sec
+      MEDIUM_ACTIVITY: 100 # ~10 ticks/sec
+      LOW_ACTIVITY: 500  # ~2 ticks/sec
+
+    # Configuration for the Window Aggregator
+  windowAggregator:
+    enabled: true
+    timerCheckIntervalMillis: 5000 # How often to check for closable windows
+    # Window durations per category
+    windowDurationMillis:
+      HIGH_ACTIVITY: 1000
+      MEDIUM_ACTIVITY: 2000
+      LOW_ACTIVITY: 3000
+      # Concurrency settings for JMS listeners per category
+    listenerConcurrency:
+      HIGH_ACTIVITY: "5-10"
+      MEDIUM_ACTIVITY: "3-8"
+      LOW_ACTIVITY: "1-5"
+  # --- Price Stream Service Configuration ---
+  priceStream:
+    listenerConcurrency: "1-2" # Lower concurrency for the UI stream is fine
+
+
+ams:
+  # Sharding is now dynamic. We just define the shards that exist.
+  # Symbols will be automatically distributed across these shards using consistent hashing.
+  shards:
+    shard-alpha:
+      listener-concurrency: "3-5"
+    shard-beta:
+      listener-concurrency: "2-4"
+    shard-gamma:
+      listener-concurrency: "1-2"
+    shard-delta:
+      listener-concurrency: "1-2"
+  # Configuration for the consistent hashing ring
+  consistentHashing:
+    virtualNodesPerShard: 3 # Higher number means more even distribution
+
+logging:
+  pattern:
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%-5level]){level} %clr(%-40.40logger{39}){cyan} %clr([%15.40thread]){blue} %clr(:){faint} %replace(%msg){'(?i)(Published aggregated window for)','\u001B[35mPublished aggregated window for\u001B[0m'}%n"
+  level:
+    # Suppress Artemis logs
+    org.apache.activemq.audit: ERROR
+    org.apache.activemq.artemis: WARN
+    vivek.example.kite.tickprocessor.service.MockTickProducer: INFO
+    vivek.example.kite.tickprocessor.service.WindowAggregator: INFO

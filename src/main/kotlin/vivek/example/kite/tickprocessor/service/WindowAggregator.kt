@@ -3,12 +3,12 @@ package vivek.example.kite.tickprocessor.service
 import jakarta.annotation.PreDestroy
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.Executor
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.jms.annotation.JmsListener
 import org.springframework.jms.core.JmsTemplate
 import org.springframework.scheduling.annotation.Scheduled
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor
 import org.springframework.stereotype.Service
 import vivek.example.kite.tickprocessor.config.TickProcessorProperties
 import vivek.example.kite.tickprocessor.model.AggregatedLHWindow
@@ -18,7 +18,7 @@ import vivek.example.kite.tickprocessor.model.TickData
 class WindowAggregator(
     @Qualifier("jmsTopicTemplate") private val jmsTopicTemplate: JmsTemplate,
     private val tickProcessorProperties: TickProcessorProperties,
-    private val taskExecutor: Executor
+    @Qualifier("windowAggregatorTaskExecutor") private val taskExecutor: ThreadPoolTaskExecutor
 ) {
   private val logger = LoggerFactory.getLogger(javaClass)
   private val tickBuffers = ConcurrentHashMap<String, MutableList<TickData>>()

@@ -1,11 +1,11 @@
 package vivek.example.kite.tickprocessor.config
 
 import jakarta.jms.ConnectionFactory
+import jakarta.jms.Session
 import org.springframework.boot.autoconfigure.jms.DefaultJmsListenerContainerFactoryConfigurer
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.jms.config.DefaultJmsListenerContainerFactory
-import vivek.example.kite.config.JmsConfig.Factory.topicListenerFactory
 
 @Configuration
 class TickProcessorJmsConfig {
@@ -54,5 +54,20 @@ class TickProcessorJmsConfig {
   ): DefaultJmsListenerContainerFactory {
     return topicListenerFactory(
         connectionFactory, configurer, tickProcessorProperties.priceStream.listenerConcurrency)
+  }
+
+  // A generic factory for topic listeners
+  private fun topicListenerFactory(
+      connectionFactory: ConnectionFactory,
+      configurer: DefaultJmsListenerContainerFactoryConfigurer,
+      concurrency: String
+  ): DefaultJmsListenerContainerFactory {
+    val factory = DefaultJmsListenerContainerFactory()
+    configurer.configure(factory, connectionFactory)
+    factory.setConcurrency(concurrency)
+    factory.setPubSubDomain(true) // This is crucial for listening to topics
+    factory.setSessionAcknowledgeMode(Session.AUTO_ACKNOWLEDGE)
+    factory.setSubscriptionShared(true) // Enable shared subscription
+    return factory
   }
 }

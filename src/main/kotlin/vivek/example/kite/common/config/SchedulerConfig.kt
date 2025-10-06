@@ -1,4 +1,4 @@
-package vivek.example.kite.config
+package vivek.example.kite.common.config
 
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -8,7 +8,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor
 @Configuration
 @EnableScheduling // Enables the @Scheduled annotation for our timer
 class SchedulerConfig {
-  @Bean
+  @Bean("windowAggregatorTaskExecutor")
   fun taskExecutor(): ThreadPoolTaskExecutor {
     val executor = ThreadPoolTaskExecutor()
     executor.corePoolSize = 10
