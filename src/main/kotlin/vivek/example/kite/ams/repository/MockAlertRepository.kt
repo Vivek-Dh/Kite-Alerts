@@ -4,10 +4,12 @@ import java.math.BigDecimal
 import java.time.Clock
 import java.time.Instant
 import java.util.UUID
+import kotlin.random.Random
 import org.springframework.context.annotation.Primary
 import org.springframework.stereotype.Repository
 import vivek.example.kite.ams.model.Alert
 import vivek.example.kite.ams.model.ConditionType
+import vivek.example.kite.common.config.CommonProperties
 
 /**
  * An in-memory mock repository for user alerts. In a real application, this would connect to a
@@ -17,7 +19,10 @@ import vivek.example.kite.ams.model.ConditionType
  */
 @Primary
 @Repository
-class MockAlertRepository(private val clock: Clock) : AlertRepository {
+class MockAlertRepository(
+    private val clock: Clock,
+    private val commonProperties: CommonProperties
+) : AlertRepository {
 
   companion object TestAlertIds {
     val RELIANCE_GTE_2828 = UUID.randomUUID()
@@ -35,27 +40,17 @@ class MockAlertRepository(private val clock: Clock) : AlertRepository {
     }
   }
 
-  private fun getBasePriceForSymbol(symbol: String): Double {
-    return when (symbol) {
-      "RELIANCE" -> 2800.0
-      "HDFCBANK" -> 1500.0
-      "ICICIBANK" -> 950.0
-      "INFY" -> 1400.0
-      "TCS" -> 3400.0
-      "SBIN" -> 580.0
-      "KOTAKBANK" -> 1800.0
-      "WIPRO" -> 450.0 // Add a stable base price for WIPRO for predictable tests
-      "ASIANPAINT" -> 1200.0
-      "NESTLEIND" -> 1500.0
-      else -> (kotlin.math.abs(symbol.hashCode() % 200) * 10.0) + 100.0
-    }
+  private fun getBasePriceForSymbol(symbol: String): BigDecimal {
+    return commonProperties.initialPrices[symbol]
+        ?: (BigDecimal.valueOf(500) *
+            BigDecimal.valueOf(Random.nextDouble(0.7, 1.3)).setScale(2, BigDecimal.ROUND_HALF_UP))
   }
 
-  private fun createMockAlertsForPrice(symbol: String, basePrice: Double): List<Alert> {
-    val priceUp1 = (basePrice * 1.01).toBigDecimal().setScale(2, BigDecimal.ROUND_HALF_UP)
-    val priceUp2 = (basePrice * 1.02).toBigDecimal().setScale(2, BigDecimal.ROUND_HALF_UP)
-    val priceDown1 = (basePrice * 0.99).toBigDecimal().setScale(2, BigDecimal.ROUND_HALF_UP)
-    val priceDown2 = (basePrice * 0.98).toBigDecimal().setScale(2, BigDecimal.ROUND_HALF_UP)
+  private fun createMockAlertsForPrice(symbol: String, basePrice: BigDecimal): List<Alert> {
+    val priceUp1 = (basePrice * BigDecimal.valueOf(1.01)).setScale(2, BigDecimal.ROUND_HALF_UP)
+    val priceUp2 = (basePrice * BigDecimal.valueOf(1.02)).setScale(2, BigDecimal.ROUND_HALF_UP)
+    val priceDown1 = (basePrice * BigDecimal.valueOf(0.99)).setScale(2, BigDecimal.ROUND_HALF_UP)
+    val priceDown2 = (basePrice * BigDecimal.valueOf(0.98)).setScale(2, BigDecimal.ROUND_HALF_UP)
 
     return listOf(
         Alert(
@@ -96,10 +91,10 @@ class MockAlertRepository(private val clock: Clock) : AlertRepository {
             Instant.now(clock).toEpochMilli()),
         Alert(
             if (symbol.equals("RELIANCE")) RELIANCE_EQ_2800 else UUID.randomUUID(),
-            "${symbol}_eq_${basePrice.toBigDecimal()}",
+            "${symbol}_eq_${basePrice}",
             symbol,
             "user_1",
-            basePrice.toBigDecimal(),
+            basePrice,
             ConditionType.EQ,
             false,
             Instant.now(clock).toEpochMilli()))

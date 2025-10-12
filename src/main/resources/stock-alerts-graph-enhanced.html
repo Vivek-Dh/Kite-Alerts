@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KITE Terminal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #f9f9f9;
+            --bg-secondary: #ffffff;
+            --text-primary: #444444;
+            --text-secondary: #757575;
+            --border-color: #e0e0e0;
+            --grid-color: #f1f1f1;
+            --card-shadow: 0 1px 3px rgba(0,0,0,0.02);
+            --input-bg: #fafafa;
+            --highlight-bg: #f1f5f9;
+            --text-accent: #334155;
+        }
+
+        html.dark {
+            --bg-primary: #181818;
+            --bg-secondary: #212121;
+            --text-primary: #d4d4d4;
+            --text-secondary: #9e9e9e;
+            --border-color: #333333;
+            --grid-color: #2a2a2a;
+            --card-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            --input-bg: #2a2a2a;
+            --highlight-bg: #374151;
+            --text-accent: #cbd5e1;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .kite-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        .scroll-y::-webkit-scrollbar { width: 5px; }
+        .scroll-y::-webkit-scrollbar-track { background: var(--bg-primary); }
+        .scroll-y::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+        html.dark .scroll-y::-webkit-scrollbar-thumb { background: #444; }
+        .fade-in { animation: fadeIn .3s ease-in-out; }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(5px);} to{opacity:1;transform:none;} }
+        .mono { font-family: 'Menlo', 'Consolas', 'Roboto Mono', monospace; }
+        .latest-alert-hidden {
+            opacity: 0;
+            transform: translateY(-10px) scale(0.95);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            pointer-events: none;
+        }
+        .latest-alert-visible {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+        [data-tooltip] { position: relative; cursor: help; }
+        [data-tooltip]::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(-5px);
+            background-color: #333;
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s;
+            z-index: 10;
+        }
+        [data-tooltip]:hover::after { opacity: 1; visibility: visible; }
+        /* Make annotation labels non-interactive so they don't block tooltips on markers */
+        .apexcharts-text-annotation, .apexcharts-point-annotation-label {
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<header class="px-6 py-3 flex-none flex justify-between items-center bg-[var(--bg-secondary)] border-b border-[var(--border-color)]">
+    <h1 class="text-xl font-medium text-[var(--text-primary)] tracking-tight">KITE Terminal</h1>
+    <div class="flex items-center gap-5 text-xs">
+        <div id="latest-alert-toast" class="latest-alert-hidden flex items-center gap-2 text-xs p-2 rounded-md bg-blue-50 border border-blue-200 dark:bg-blue-900/30 dark:border-blue-700/50">
+            <!-- Latest alert content injected here -->
+        </div>
+        <div id="status-prices" class="flex items-center gap-2">
+            <span id="dot-prices" class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
+            <span id="txt-prices" class="text-[var(--text-secondary)]">Connecting...</span>
+        </div>
+        <div id="status-alerts" class="flex items-center gap-2">
+            <span id="dot-alerts" class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
+            <span id="txt-alerts" class="text-[var(--text-secondary)]">Connecting...</span>
+        </div>
+        <button id="theme-toggle" class="w-8 h-8 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]">
+            <svg id="theme-icon-light" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+            <svg id="theme-icon-dark" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+        </button>
+    </div>
+</header>
+
+<main class="flex-1 flex gap-4 p-4 overflow-hidden w-full min-h-0">
+
+    <section class="kite-card flex flex-col w-1/4 rounded-md p-4 min-h-0">
+        <h2 class="text-base font-medium mb-3 text-[var(--text-primary)] flex-none">Triggered Alerts</h2>
+        <div id="triggered-pane" class="scroll-y flex-1 overflow-y-auto space-y-2 pr-2 min-h-0">
+            <p id="triggered-placeholder" class="text-[var(--text-secondary)] text-sm text-center pt-4">Waiting for triggered alerts…</p>
+        </div>
+    </section>
+
+    <section class="kite-card flex flex-col flex-1 rounded-md p-4 min-h-0">
+        <div class="flex flex-wrap justify-between items-center mb-3 gap-3 flex-none">
+            <div id="legend" class="flex flex-wrap gap-x-4 gap-y-2 text-sm text-[var(--text-secondary)]">Waiting for symbols…</div>
+            <label class="flex items-center gap-2 text-sm cursor-pointer text-gray-600 hover:text-blue-600 dark:text-gray-300">
+                <input id="toggle-all" type="checkbox" checked class="w-4 h-4 accent-blue-600 rounded border-gray-300 dark:border-gray-600">
+                <span>Toggle All</span>
+            </label>
+        </div>
+        <div class="flex-1 w-full min-h-0 relative">
+            <div id="chart" class="absolute top-0 left-0 w-full h-full"></div>
+        </div>
+    </section>
+
+    <section class="kite-card flex flex-col w-1/4 rounded-md p-4 min-h-0">
+        <h2 class="text-base font-medium mb-3 text-[var(--text-primary)] flex-none">Active Alerts</h2>
+        <div id="active-pane" class="scroll-y flex-1 overflow-y-auto space-y-3 pr-2 min-h-0">
+            <p id="active-placeholder" class="text-[var(--text-secondary)] text-sm text-center pt-4">Loading active alerts…</p>
+        </div>
+    </section>
+
+</main>
+
+<script>
+    const ENDPOINTS = {
+        PRICES:'http://localhost:8080/api/v1/prices/stream/aggregated',
+        ALERTS:'http://localhost:8080/api/v1/alerts/stream',
+        ACTIVE:'http://localhost:8080/api/v1/alerts/active'
+    };
+
+    const KITE_COLORS = ['#387ed1', '#f44336', '#4caf50', '#ff9800', '#9c27b0', '#00bcd4', '#795548', '#f06292'];
+    const TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const state = { data: {}, visible: new Set(), annotations: [], chart: null, toastTimeout: null };
+
+    function getSymbolColor(symbol) {
+        let hash = 0;
+        for (let i = 0; i < symbol.length; i++) hash = symbol.charCodeAt(i) + ((hash << 5) - hash);
+        return KITE_COLORS[Math.abs(hash) % KITE_COLORS.length];
+    }
+
+    function getAlertIcon(color) {
+        const svg = `<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><g fill="none" fill-rule="evenodd"><path d="M0 0h24v24H0z"/><path d="M12 22a2.006 2.006 0 002-2h-4a2.006 2.006 0 002 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" fill="${color}"/></g></svg>`;
+        return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+    }
+
+    function formatTime(utcTimestamp) {
+        if (!utcTimestamp) return null;
+        const dateInput = typeof utcTimestamp === 'string' && !utcTimestamp.endsWith('Z')
+            ? utcTimestamp.replace(' ', 'T') + 'Z'
+            : utcTimestamp;
+        return new Date(dateInput).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    const chart = new ApexCharts(document.querySelector('#chart'), {
+        series: [],
+        chart: { type: 'line', height: '100%', animations: { enabled: true, easing: 'linear', dynamicAnimation: { speed: 500 } }, toolbar: { show: true }, zoom: { enabled: true } },
+        colors: KITE_COLORS,
+        stroke: { curve: 'smooth', width: 2 },
+        markers: {
+            size: 3,
+            strokeWidth: 0,
+            hover: { size: 7 }
+        },
+        xaxis: { type: 'datetime', labels: { style: { colors: 'var(--text-secondary)', fontSize: '12px' }, datetimeUTC: false, format: 'HH:mm:ss' }, tooltip: { enabled: false }, axisBorder: { show: true, color: 'var(--border-color)'}, axisTicks: { show: true, color: 'var(--border-color)'} },
+        yaxis: {
+            min: 0,
+            forceNiceScale: true,
+            labels: { style: { colors: 'var(--text-secondary)', fontSize: '12px' }, formatter: v => `₹${Number(v).toFixed(2)}` },
+            opposite: true
+        },
+        tooltip: { x: { format: 'dd MMM, HH:mm:ss' } },
+        grid: {
+            borderColor: 'var(--grid-color)',
+            strokeDashArray: 3,
+            xaxis: { lines: { show: true } },
+            yaxis: { lines: { show: true } },
+            padding: {
+                bottom: 30
+            }
+        },
+        legend: { show: false },
+        annotations: { points: [], texts: [] }
+    });
+    chart.render();
+
+    function setStatus(kind, isOk) {
+        const dot = document.querySelector(`#dot-${kind}`), txt = document.querySelector(`#txt-${kind}`);
+        if (isOk) {
+            dot.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
+            txt.textContent = `${kind.charAt(0).toUpperCase() + kind.slice(1)} Connected`;
+            txt.className = 'text-green-600 dark:text-green-400';
+        } else {
+            dot.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+            txt.textContent = `${kind.charAt(0).toUpperCase() + kind.slice(1)} Disconnected`;
+            txt.className = 'text-red-600 dark:text-red-400';
+        }
+    }
+
+    function connectSSE(url, event, kind, handler) {
+        const es = new EventSource(url);
+        es.addEventListener(event, e => { try { handler(JSON.parse(e.data)); } catch (err) { console.error(err); }});
+        es.onopen = () => setStatus(kind, true);
+        es.onerror = () => setStatus(kind, false);
+    }
+
+    function updateData(d) {
+        const { symbol, windowEndTime, low, high } = d;
+        if (!symbol) return;
+
+        const oneMinuteAgo = Date.now() - 60000;
+
+        const avgPrice = (low + high) / 2;
+        if (!state.data[symbol]) {
+            state.data[symbol] = []; state.visible.add(symbol); buildLegend();
+        }
+        state.data[symbol].push({ x: windowEndTime, y: avgPrice });
+        state.data[symbol] = state.data[symbol].filter(p => p.x >= oneMinuteAgo);
+
+        state.annotations = state.annotations.filter(a => a.x >= oneMinuteAgo);
+
+        drawChart();
+    }
+
+    function drawChart() {
+        const series = [...state.visible].map(s => ({ name: s, data: state.data[s] }));
+
+        const lineLabels = series.map(s => {
+            if (!s.data || s.data.length === 0) return null;
+            const lastPoint = s.data[s.data.length - 1];
+            const color = getSymbolColor(s.name);
+            return {
+                x: lastPoint.x,
+                y: lastPoint.y,
+                text: s.name,
+                textAnchor: 'start',
+                offsetX: 10,
+                offsetY: 4,
+                style: {
+                    background: getComputedStyle(document.body).getPropertyValue('--bg-secondary').trim(),
+                    color: color,
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    fontFamily: 'Inter, sans-serif',
+                    padding: { left: 5, right: 5, top: 2, bottom: 2 },
+                    border: '1px solid ' + getComputedStyle(document.body).getPropertyValue('--border-color').trim(),
+                    borderRadius: '4px'
+                },
+            };
+        }).filter(Boolean);
+
+        chart.updateOptions({
+            series,
+            annotations: {
+                points: state.annotations,
+                texts: lineLabels
+            }
+        });
+    }
+
+    function buildLegend() {
+        const legend = document.querySelector('#legend');
+        legend.innerHTML = '';
+        Object.keys(state.data).sort().forEach(s => {
+            const color = getSymbolColor(s);
+            const wrapper = document.createElement('label');
+            wrapper.className = 'flex items-center gap-2 cursor-pointer';
+            wrapper.innerHTML = `<input type="checkbox" value="${s}" checked class="symbol-cb w-4 h-4 accent-blue-600 rounded border-gray-300 dark:border-gray-600"><span class="w-2.5 h-2.5 rounded-full" style="background-color: ${color};"></span><span class="mono text-xs font-medium" style="color: ${color};">${s}</span>`;
+            wrapper.querySelector('.symbol-cb').addEventListener('change', e => {
+                if (e.target.checked) state.visible.add(s); else state.visible.delete(s);
+                drawChart();
+            });
+            legend.append(wrapper);
+        });
+    }
+
+    document.querySelector('#toggle-all').addEventListener('change', e => {
+        const isChecked = e.target.checked;
+        if (isChecked) Object.keys(state.data).forEach(s => state.visible.add(s)); else state.visible.clear();
+        document.querySelectorAll('.symbol-cb').forEach(cb => cb.checked = isChecked);
+        drawChart();
+    });
+
+    function addTriggeredAlert(ev) {
+        const pane = document.querySelector('#triggered-pane');
+        const placeholder = document.querySelector('#triggered-placeholder');
+        if (placeholder) placeholder.remove();
+
+        const { alert: { stockSymbol, conditionType, priceThreshold }, triggeredAtUtc, triggeredPrice } = ev;
+        const color = getSymbolColor(stockSymbol);
+        const operatorMap = { GT: '>', GTE: '≥', LT: '<', LTE: '≤', EQ: '=' };
+        const localTime = formatTime(triggeredAtUtc);
+        const card = document.createElement('div');
+        card.className = 'fade-in flex justify-between items-center p-2.5 rounded border-l-4 bg-[var(--input-bg)]';
+        card.style.borderColor = color;
+        card.innerHTML = `<div class="flex flex-col">
+                              <span class="mono font-semibold text-sm" style="color:${color}">${stockSymbol}</span>
+                              <span class="text-xs text-[var(--text-secondary)] mt-0.5">Triggered @ <span class="font-medium text-[var(--text-primary)]">₹${triggeredPrice.toFixed(2)}</span></span>
+                          </div>
+                          <div class="text-right">
+                              <span class="mono text-xs text-[var(--text-primary)]">${operatorMap[conditionType] || '?'} ${priceThreshold}</span>
+                              <span class="block text-xs font-medium text-[var(--text-accent)] mt-1 bg-[var(--highlight-bg)] px-1.5 py-0.5 rounded" data-tooltip="${TIMEZONE}">${localTime}</span>
+                          </div>`;
+        pane.prepend(card);
+
+        while (pane.children.length > 20) {
+            pane.lastElementChild.remove();
+        }
+
+        const toast = document.querySelector('#latest-alert-toast');
+        toast.innerHTML = `<span class="w-2 h-2 rounded-full" style="background:${color}"></span><span class="mono font-semibold text-xs" style="color:${color}">${stockSymbol}</span><span class="text-xs text-gray-600 dark:text-gray-300">triggered at ₹${triggeredPrice.toFixed(2)}</span>`;
+        toast.classList.remove('latest-alert-hidden'); toast.classList.add('latest-alert-visible');
+        if (state.toastTimeout) clearTimeout(state.toastTimeout);
+        state.toastTimeout = setTimeout(() => { toast.classList.add('latest-alert-hidden'); toast.classList.remove('latest-alert-visible'); }, 5000);
+
+        state.annotations.push({
+            x: new Date(triggeredAtUtc).getTime(),
+            y: triggeredPrice,
+            marker: { size: 0 },
+            image: { path: getAlertIcon(color), width: 20, height: 20, offsetX: -10, offsetY: -10 },
+            label: {
+                text: `${operatorMap[conditionType] || '?'} ${priceThreshold}`,
+                borderColor: color,
+                offsetY: -30,
+                style: {
+                    background: color,
+                    color: '#fff',
+                    fontSize: '11px',
+                    fontFamily: 'Inter, sans-serif',
+                    padding: { left: 6, right: 6, top: 3, bottom: 4 }
+                }
+            }
+        });
+
+        while (state.annotations.length > 20) {
+            state.annotations.shift();
+        }
+
+        drawChart();
+    }
+
+    async function fetchActive() {
+        const pane = document.querySelector('#active-pane');
+        try {
+            const response = await fetch(ENDPOINTS.ACTIVE); if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const alerts = await response.json();
+            if (!alerts.length) { pane.innerHTML = `<p class="text-[var(--text-secondary)] text-sm text-center pt-4">No active alerts.</p>`; return; }
+            pane.innerHTML = '';
+            const groupedBySymbol = alerts.reduce((acc, alert) => { (acc[alert.stockSymbol] = acc[alert.stockSymbol] || []).push(alert); return acc; }, {});
+            Object.entries(groupedBySymbol).forEach(([symbol, list]) => {
+                const color = getSymbolColor(symbol);
+                const block = document.createElement('div');
+                block.className = 'bg-[var(--bg-secondary)] rounded p-2.5 border border-[var(--border-color)]';
+                let listHtml = list.map(a => {
+                    const updatedTime = formatTime(a.updatedAtUtc);
+                    const timeHtml = updatedTime ? `<div class="text-xs text-[var(--text-secondary)] mt-2">Updated: <span class="font-medium text-[var(--text-accent)]" data-tooltip="${TIMEZONE}">${updatedTime}</span></div>` : '';
+                    return `<div class="py-2 border-t border-[var(--border-color)] first:border-t-0">
+                                <div class="flex justify-between items-center text-xs">
+                                    <span class="text-xs bg-[var(--highlight-bg)] text-[var(--text-accent)] font-medium px-2 py-1 rounded">User ${a.userId}</span>
+                                    <span class="mono bg-[var(--bg-primary)] px-1.5 py-0.5 rounded">${a.conditionType} ₹${a.priceThreshold}</span>
+                                </div>
+                                ${timeHtml}
+                            </div>`;
+                }).join('');
+                block.innerHTML = `<h4 class="font-medium text-sm mb-1 flex items-center gap-2" style="color:${color}"><span class="w-2 h-2 rounded-full" style="background:${color}"></span><span class="mono">${symbol}</span></h4>${listHtml}`;
+                pane.append(block);
+            });
+        } catch (e) { console.error(e); pane.innerHTML = `<p class="text-red-500 text-sm text-center pt-4">Failed to load active alerts.</p>`; }
+    }
+
+    // Theme Toggle Logic
+    const themeToggle = document.getElementById('theme-toggle');
+    const lightIcon = document.getElementById('theme-icon-light');
+    const darkIcon = document.getElementById('theme-icon-dark');
+
+    function applyTheme(theme) {
+        if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+            lightIcon.classList.add('hidden'); darkIcon.classList.remove('hidden');
+        } else {
+            document.documentElement.classList.remove('dark');
+            lightIcon.classList.remove('hidden'); darkIcon.classList.add('hidden');
+        }
+        chart.updateOptions({
+            theme: { mode: theme },
+            tooltip: { theme: theme }
+        });
+        if (state.data && Object.keys(state.data).length > 0) {
+            drawChart();
+        }
+    }
+
+    themeToggle.addEventListener('click', () => {
+        const isDark = document.documentElement.classList.contains('dark');
+        const newTheme = isDark ? 'light' : 'dark';
+        localStorage.setItem('theme', newTheme);
+        applyTheme(newTheme);
+    });
+
+    const savedTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    applyTheme(savedTheme);
+
+    connectSSE(ENDPOINTS.PRICES, 'aggregated-price-update', 'prices', updateData);
+    connectSSE(ENDPOINTS.ALERTS, 'triggered-alert', 'alerts', addTriggeredAlert);
+    fetchActive();
+    setInterval(fetchActive, 5000);
+</script>
+
+</body>
+</html>
+
+
+

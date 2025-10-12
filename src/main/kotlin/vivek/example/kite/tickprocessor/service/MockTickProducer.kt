@@ -3,7 +3,6 @@ package vivek.example.kite.tickprocessor.service
 import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
 import java.math.BigDecimal
-import java.math.RoundingMode
 import java.time.Clock
 import java.time.Instant
 import kotlin.random.Random
@@ -13,6 +12,7 @@ import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Profile
 import org.springframework.jms.core.JmsTemplate
 import org.springframework.stereotype.Service
+import vivek.example.kite.common.config.CommonProperties
 import vivek.example.kite.tickprocessor.config.TickProcessorProperties
 import vivek.example.kite.tickprocessor.model.TickData
 import vivek.example.kite.tickprocessor.util.PriceSimulator
@@ -23,6 +23,7 @@ class MockTickProducer(
     private val clock: Clock,
     @Qualifier("jmsTopicTemplate") private val jmsTopicTemplate: JmsTemplate,
     private val tickProcessorProperties: TickProcessorProperties,
+    private val commonProperties: CommonProperties,
 ) {
   private val logger = LoggerFactory.getLogger(javaClass)
   private val producerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -48,8 +49,7 @@ class MockTickProducer(
 
   private fun initializeStockStates() {
     tickProcessorProperties.mockProducer.stockCategories.values.flatten().forEach { symbol ->
-      val initialPrice =
-          Random.nextDouble(100.0, 500.0).toBigDecimal().setScale(2, RoundingMode.HALF_UP)
+      val initialPrice = commonProperties.initialPrices[symbol] ?: BigDecimal.valueOf(500)
       stockStateMap[symbol] =
           StockState(
               currentPrice = initialPrice,

@@ -40,8 +40,8 @@ class InMemoryAlertCache(
 
   fun getAlertDetails(id: UUID): Alert? = alertsById[id]
 
-  fun getActiveAlerts(): List<Alert> {
-    return alertsById.values.toList()
+  fun getActiveAlerts(): Set<Alert> {
+    return alertsById.values.toSet()
   }
 
   private fun addAlert(alert: Alert) {

@@ -21,6 +21,17 @@ common:
   aggregatedUpdatesTopic: "AGGREGATED_LH_STOCK_UPDATES_TOPIC"
   triggeredAlertsTopic: "TRIGGERED_ALERTS_TOPIC"
   stocks: [ "RELIANCE", "HDFCBANK", "ICICIBANK", "INFY", "TCS", "SBIN", "KOTAKBANK", "WIPRO", "ASIANPAINT", "NESTLEIND" ]
+  initial-prices:
+    RELIANCE: 2800.0
+    HDFCBANK: 1500.0
+    ICICIBANK: 950.0
+    INFY: 1400.0
+    TCS: 3400.0
+    SBIN: 580.0
+    KOTAKBANK: 1800.0
+    WIPRO: 450.0
+    ASIANPAINT: 1200.0
+    NESTLEIND: 1500.0
 
 tick-processor:
   # Configuration for JMS destinations
@@ -41,14 +52,14 @@ tick-processor:
       MEDIUM_ACTIVITY: [ "INFY", "TCS", "SBIN", "KOTAKBANK" ]
       LOW_ACTIVITY: [ "WIPRO", "ASIANPAINT", "NESTLEIND" ]
       # Price simulation parameters
-    tickVolatility: 0.005 # 0.5%
+    tickVolatility: 0.01 # 1%
     driftUpdateTicks: 1000 # Change drift bias every 1000 ticks
     driftBiasRange: 0.1 # New drift bias will be between -0.1 and +0.1
     # Throughput control per category
     frequencyMillis:
-      HIGH_ACTIVITY: 9000   # ~20 ticks/sec
-      MEDIUM_ACTIVITY: 19000 # ~10 ticks/sec
-      LOW_ACTIVITY: 49000  # ~2 ticks/sec
+      HIGH_ACTIVITY: 900   # ~20 ticks/sec
+      MEDIUM_ACTIVITY: 1900 # ~10 ticks/sec
+      LOW_ACTIVITY: 4900  # ~2 ticks/sec
 
     # Configuration for the Window Aggregator
   windowAggregator:
@@ -56,9 +67,9 @@ tick-processor:
     timerCheckIntervalMillis: 5000 # How often to check for closable windows
     # Window durations per category
     windowDurationMillis:
-      HIGH_ACTIVITY: 10000
-      MEDIUM_ACTIVITY: 20000
-      LOW_ACTIVITY: 50000
+      HIGH_ACTIVITY: 1000
+      MEDIUM_ACTIVITY: 2000
+      LOW_ACTIVITY: 5000
       # Concurrency settings for JMS listeners per category
     listenerConcurrency:
       HIGH_ACTIVITY: "5-10"
@@ -87,7 +98,8 @@ ams:
 
 logging:
   pattern:
-    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%-5level]){level} %clr(%-40.40logger{39}){cyan} %clr([%15.40thread]){blue} %clr(:){faint} %replace(%msg){'(?i)(Published aggregated window for)','\u001B[35mPublished aggregated window for\u001B[0m'}%n"
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%-5level]){level} %clr(%-40.40logger{39}){cyan} %clr([%15.40thread]){blue} %clr(:){faint} %replace(%msg){'(?i)(Published (?:aggregated window for|TriggeredAlertEvent for alertId))','\u001B[35m$1\u001B[0m'}%n"
+  #    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%-5level]){level} %clr(%-40.40logger{39}){cyan} %clr([%15.40thread]){blue} %clr(:){faint} %replace(%msg){'(?i)(Published aggregated window for)','\u001B[35mPublished aggregated window for\u001B[0m'}%n"
   level:
     # Suppress Artemis logs
     org.apache.activemq.audit: ERROR

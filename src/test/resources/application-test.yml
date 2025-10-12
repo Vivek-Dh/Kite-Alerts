@@ -22,6 +22,8 @@ spring:
 
 # Test logging configuration
 logging:
+  pattern:
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%-5level]){level} %clr(%-40.40logger{39}){cyan} %clr([%15.40thread]){blue} %clr(:){faint} %replace(%msg){'(?i)(Published (?:aggregated window for|TriggeredAlertEvent for alertId))','\u001B[35m$1\u001B[0m'}%n"
   level:
     root: WARN
     # Suppress Artemis logs
@@ -34,6 +36,17 @@ common:
   aggregatedUpdatesTopic: "test.aggregated.updates"
   triggeredAlertsTopic: "test.triggered.alerts"
   stocks: [ "RELIANCE", "INFY", "WIPRO", "HDFCBANK", "ICICIBANK", "TCS", "SBIN", "KOTAKBANK", "ASIANPAINT", "NESTLEIND" ]
+  initial-prices:
+    RELIANCE: 2800.0
+    HDFCBANK: 1500.0
+    ICICIBANK: 950.0
+    INFY: 1400.0
+    TCS: 3400.0
+    SBIN: 580.0
+    KOTAKBANK: 1800.0
+    WIPRO: 450.0
+    ASIANPAINT: 1200.0
+    NESTLEIND: 1500.0
 
 # Test-specific JMS topics
 tick-processor:

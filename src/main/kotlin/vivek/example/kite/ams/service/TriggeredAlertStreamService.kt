@@ -28,17 +28,16 @@ class TriggeredAlertStreamService(
   fun getActiveAlerts(
       @RequestParam userId: String?,
       @RequestParam stockSymbol: String?
-  ): List<Alert> {
-    val symbols: List<String> = stockSymbol?.let { listOf(it) } ?: commonProperties.stocks
-    val symbolAlerts: List<Alert> =
-        symbols.flatMap { symbol ->
-          val shard = shardManager.getShardForSymbol(symbol)
-          if (shard != null) {
-            return@flatMap shard.cache.getActiveAlerts()
-          }
-          return emptyList()
-        }
-    return userId?.let { symbolAlerts.filter { it.userId == userId } } ?: symbolAlerts
+  ): Set<Alert> {
+    val symbols: Set<String> = stockSymbol?.let { setOf(it) } ?: commonProperties.stocks.toSet()
+    val symbolAlerts: Set<Alert> =
+        symbols
+            .flatMap { symbol ->
+              val shard = shardManager.getShardForSymbol(symbol)
+              shard?.cache?.getActiveAlerts() ?: emptySet()
+            }
+            .toSet()
+    return userId?.let { symbolAlerts.filter { it.userId == userId }.toSet() } ?: symbolAlerts
   }
 
   @JmsListener(

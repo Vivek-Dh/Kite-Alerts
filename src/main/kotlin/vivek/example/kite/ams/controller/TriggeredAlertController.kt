@@ -4,6 +4,7 @@ import java.time.Duration
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
+import org.springframework.http.CacheControl
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.http.codec.ServerSentEvent
@@ -25,7 +26,9 @@ class TriggeredAlertController(private val streamService: TriggeredAlertStreamSe
       @RequestParam(required = false) userId: String?,
       @RequestParam(required = false) stockSymbol: String?
   ): ResponseEntity<*> {
-    return ResponseEntity.ok(streamService.getActiveAlerts(userId, stockSymbol))
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noCache())
+        .body(streamService.getActiveAlerts(userId, stockSymbol))
   }
 
   @GetMapping("/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
