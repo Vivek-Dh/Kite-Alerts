@@ -1,15 +1,27 @@
 package vivek.example.kite.ams.service
 
 import java.math.BigDecimal
+import java.time.Clock
+import java.time.Instant
+import java.util.UUID
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.jms.core.JmsTemplate
 import org.springframework.stereotype.Service
 import vivek.example.kite.ams.config.AmsProperties
 import vivek.example.kite.ams.model.ConditionType
+import vivek.example.kite.ams.model.TriggeredAlertEvent
 import vivek.example.kite.ams.shard.Shard
+import vivek.example.kite.common.config.CommonProperties
 import vivek.example.kite.tickprocessor.model.AggregatedLHWindow
 
 @Service
-class AlertMatchingService(private val amsProperties: AmsProperties) {
+class AlertMatchingService(
+    private val clock: Clock,
+    private val commonProperties: CommonProperties,
+    private val amsProperties: AmsProperties,
+    @Qualifier("jmsTopicTemplate") private val jmsTopicTemplate: JmsTemplate
+) {
   private val logger = LoggerFactory.getLogger(javaClass)
 
   fun processMessageForShard(window: AggregatedLHWindow, shard: Shard) {
@@ -49,18 +61,29 @@ class AlertMatchingService(private val amsProperties: AmsProperties) {
       return
     }
 
-    val triggeredAlerts = mutableSetOf<String>()
+    val triggeredAlerts = mutableSetOf<UUID>()
+    // A map to store which price triggered which alert
+    val triggerDetails = mutableMapOf<UUID, BigDecimal>()
 
-    triggeredAlerts.addAll(matchUpperBoundAlerts(window.high, symbolAlerts))
-    triggeredAlerts.addAll(matchLowerBoundAlerts(window.low, symbolAlerts))
-    triggeredAlerts.addAll(matchEqualsAlerts(window.low, window.high, symbolAlerts))
+    matchUpperBoundAlerts(window.high, symbolAlerts).forEach {
+      triggeredAlerts.add(it)
+      triggerDetails[it] = window.high
+    }
+    matchLowerBoundAlerts(window.low, symbolAlerts).forEach {
+      triggeredAlerts.add(it)
+      triggerDetails[it] = window.low
+    }
+    matchEqualsAlerts(window.low, window.high, symbolAlerts).forEach {
+      triggeredAlerts.add(it)
+      triggerDetails[it] = window.high // Use high price as the "triggering" price for range match
+    }
 
     if (triggeredAlerts.isNotEmpty()) {
       logger.info(
-          "Shard : [{}] TRIGGERED ALERTS for {}: {}",
-          shard.name,
-          symbol,
-          triggeredAlerts.joinToString())
+          "[{}] Matched Alerts for {}: {}", shard.name, symbol, triggeredAlerts.joinToString())
+
+      // Instead of just logging, publish events to the new topic
+      publishTriggeredAlerts(triggeredAlerts, triggerDetails, shard)
     }
 
     logger.info(
@@ -73,13 +96,13 @@ class AlertMatchingService(private val amsProperties: AmsProperties) {
   private fun matchUpperBoundAlerts(
       highPrice: BigDecimal,
       alerts: SymbolAlertsContainer
-  ): Set<String> {
-    val triggered = mutableSetOf<String>()
+  ): Set<UUID> {
+    val triggered = mutableSetOf<UUID>()
     // GTE alerts: priceThreshold <= highPrice
     alerts.upperBoundAlerts.headMap(highPrice, true).values.forEach { alertDetails ->
       alertDetails.forEach { detail ->
         if (detail.conditionType == ConditionType.GTE) {
-          triggered.add(detail.alertId)
+          triggered.add(detail.id)
         }
       }
     }
@@ -87,7 +110,7 @@ class AlertMatchingService(private val amsProperties: AmsProperties) {
     alerts.upperBoundAlerts.headMap(highPrice, false).values.forEach { alertDetails ->
       alertDetails.forEach { detail ->
         if (detail.conditionType == ConditionType.GT) {
-          triggered.add(detail.alertId)
+          triggered.add(detail.id)
         }
       }
     }
@@ -97,13 +120,13 @@ class AlertMatchingService(private val amsProperties: AmsProperties) {
   private fun matchLowerBoundAlerts(
       lowPrice: BigDecimal,
       alerts: SymbolAlertsContainer
-  ): Set<String> {
-    val triggered = mutableSetOf<String>()
+  ): Set<UUID> {
+    val triggered = mutableSetOf<UUID>()
     // LTE alerts: priceThreshold >= lowPrice
     alerts.lowerBoundAlerts.tailMap(lowPrice, true).values.forEach { alertDetails ->
       alertDetails.forEach { detail ->
         if (detail.conditionType == ConditionType.LTE) {
-          triggered.add(detail.alertId)
+          triggered.add(detail.id)
         }
       }
     }
@@ -111,7 +134,7 @@ class AlertMatchingService(private val amsProperties: AmsProperties) {
     alerts.lowerBoundAlerts.tailMap(lowPrice, false).values.forEach { alertDetails ->
       alertDetails.forEach { detail ->
         if (detail.conditionType == ConditionType.LT) {
-          triggered.add(detail.alertId)
+          triggered.add(detail.id)
         }
       }
     }
@@ -122,11 +145,47 @@ class AlertMatchingService(private val amsProperties: AmsProperties) {
       lowPrice: BigDecimal,
       highPrice: BigDecimal,
       alerts: SymbolAlertsContainer
-  ): Set<String> {
+  ): Set<UUID> {
     return alerts.equalsAlerts
         .subMap(lowPrice, true, highPrice, true)
         .values
-        .flatMap { it.map { detail -> detail.alertId } }
+        .flatMap { it.map { detail -> detail.id } }
         .toSet()
+  }
+
+  private fun publishTriggeredAlerts(
+      alertIds: Set<UUID>,
+      triggerDetails: Map<UUID, BigDecimal>,
+      shard: Shard
+  ) {
+    alertIds.forEach { alertId ->
+      val alert = shard.cache.getAlertDetails(alertId)
+      if (alert == null) {
+        logger.warn(
+            "[{}] Could not find full alert details for triggered alertId: {}. Skipping publish.",
+            shard.name,
+            alertId)
+        return@forEach
+      }
+
+      val triggeredPrice = triggerDetails[alertId] ?: BigDecimal.ZERO
+      val event =
+          TriggeredAlertEvent(
+              eventId = UUID.randomUUID().toString(),
+              alert = alert,
+              triggeredAt = Instant.now(clock).toEpochMilli(),
+              triggeredPrice = triggeredPrice,
+              message =
+                  "Alert '${alert.alertId}' for user '${alert.userId}' triggered for symbol ${alert.stockSymbol}.")
+
+      jmsTopicTemplate.convertAndSend(commonProperties.triggeredAlertsTopic, event) { message ->
+        // Add properties for potential filtering by a notification service
+        message.setStringProperty("userId", alert.userId)
+        message.setStringProperty("stockSymbol", alert.stockSymbol)
+        message
+      }
+      logger.info("[{}] Published TriggeredAlertEvent for alertId: {}", shard.name, alert.alertId)
+      shard.cache.removeAlert(alertId)
+    }
   }
 }

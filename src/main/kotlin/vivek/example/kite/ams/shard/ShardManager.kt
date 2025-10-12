@@ -11,7 +11,7 @@ import org.springframework.jms.config.SimpleJmsListenerEndpoint
 import org.springframework.jms.support.converter.MessageConverter
 import org.springframework.stereotype.Component
 import vivek.example.kite.ams.config.AmsProperties
-import vivek.example.kite.ams.repository.MockAlertRepository
+import vivek.example.kite.ams.repository.AlertRepository
 import vivek.example.kite.ams.service.AlertMatchingService
 import vivek.example.kite.ams.service.InMemoryAlertCache
 import vivek.example.kite.common.config.CommonProperties
@@ -28,11 +28,12 @@ class ShardManager(
     private val registry: JmsListenerEndpointRegistry,
     private val messageConverter: MessageConverter,
     @Qualifier("amsListenerContainerFactory")
-    private val amsListenerContainerFactory:
-        DefaultJmsListenerContainerFactory // Inject the pre-configured factory
+    private val amsListenerContainerFactory: DefaultJmsListenerContainerFactory,
+    private val alertRepository: AlertRepository
 ) {
   private val logger = LoggerFactory.getLogger(javaClass)
   private val shards = mutableMapOf<String, Shard>()
+  private lateinit var assignments: Map<String, List<String>>
 
   @PostConstruct
   fun initializeShards() {
@@ -49,14 +50,13 @@ class ShardManager(
       return
     }
 
-    val assignments = shardingStrategy.assign(allSymbols, availableShards)
+    assignments = shardingStrategy.assign(allSymbols, availableShards)
     logger.info("Sharding assignments complete: $assignments")
 
     assignments.forEach { (shardName, assignedSymbols) ->
       val shardConfig = amsProperties.shards[shardName]!!
       logger.info("--> Creating shard: '$shardName' for symbols: $assignedSymbols")
 
-      val alertRepository = MockAlertRepository()
       val inMemoryCache = InMemoryAlertCache(alertRepository, assignedSymbols)
       inMemoryCache.initializeCache()
 
@@ -71,6 +71,13 @@ class ShardManager(
       logger.warn(
           "--> Shard '$shardName' was configured but received no symbol assignments. It will be idle.")
     }
+  }
+
+  // New public method to allow tests to access shard information
+  fun getShardForSymbol(symbol: String): Shard? {
+    if (!this::assignments.isInitialized) return null
+    val shardName = assignments.entries.find { symbol in it.value }?.key ?: return null
+    return shards[shardName]
   }
 
   private fun registerListenerForShard(shard: Shard, concurrency: String) {
@@ -117,7 +124,11 @@ class ShardManager(
   fun shutdown() {
     logger.info("Shutting down all AMS shard listeners.")
     shards.keys.forEach { shardName ->
-      registry.getListenerContainer("ams-shard-listener-$shardName")?.stop()
+      val containerId = "ams-shard-listener-$shardName"
+      val container = registry.getListenerContainer(containerId)
+      container?.stop()
     }
+    registry.destroy()
+    shards.clear()
   }
 }

@@ -36,7 +36,11 @@ dependencies {
     implementation("com.google.guava:guava:33.2.1-jre")
 
     // Test dependencies
-    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-test") {
+        exclude(group = "org.mockito")
+    }
+    testImplementation(platform("org.springframework.boot:spring-boot-dependencies:3.2.5"))
+    testImplementation("io.projectreactor:reactor-test")
     // Awaitility for asynchronous testing
     testImplementation("org.awaitility:awaitility-kotlin:4.2.1")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")

@@ -1,6 +1,9 @@
 # This block is the crucial fix. It tells Spring Boot that the properties
 # in this file should ONLY be applied when the 'test' profile is active,
 # and they should completely REPLACE the base configuration for lists/maps, not merge.
+server:
+  port: 9090
+
 spring:
   config:
     activate:
@@ -29,6 +32,7 @@ logging:
 
 common:
   aggregatedUpdatesTopic: "test.aggregated.updates"
+  triggeredAlertsTopic: "test.triggered.alerts"
   stocks: [ "RELIANCE", "INFY", "WIPRO", "HDFCBANK", "ICICIBANK", "TCS", "SBIN", "KOTAKBANK", "ASIANPAINT", "NESTLEIND" ]
 
 # Test-specific JMS topics

@@ -1,6 +1,8 @@
 package vivek.example.kite.tickprocessor.service
 
 import jakarta.annotation.PreDestroy
+import java.time.Clock
+import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import org.slf4j.LoggerFactory
@@ -16,6 +18,7 @@ import vivek.example.kite.tickprocessor.model.TickData
 
 @Service
 class WindowAggregator(
+    private val clock: Clock,
     @Qualifier("jmsTopicTemplate") private val jmsTopicTemplate: JmsTemplate,
     private val tickProcessorProperties: TickProcessorProperties,
     @Qualifier("windowAggregatorTaskExecutor") private val taskExecutor: ThreadPoolTaskExecutor
@@ -66,13 +69,13 @@ class WindowAggregator(
     }
 
     buffer.add(tick)
-    windowStartTimes.putIfAbsent(tick.symbol, System.currentTimeMillis())
+    windowStartTimes.putIfAbsent(tick.symbol, Instant.now(clock).toEpochMilli())
     logger.debug("Added tick to buffer: {}", tick)
   }
 
   @Scheduled(fixedRateString = "\${tick-processor.windowAggregator.timerCheckIntervalMillis}")
   fun processWindows() {
-    val currentTime = System.currentTimeMillis()
+    val currentTime = Instant.now(clock).toEpochMilli()
     val symbolsToProcess = windowStartTimes.keys.toList() // Take a snapshot of current symbols
 
     symbolsToProcess.forEach { symbol ->

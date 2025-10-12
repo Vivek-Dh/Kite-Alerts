@@ -4,6 +4,7 @@ import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.time.Clock
 import java.time.Instant
 import kotlin.random.Random
 import kotlinx.coroutines.*
@@ -19,8 +20,9 @@ import vivek.example.kite.tickprocessor.util.PriceSimulator
 @Service
 @Profile("!test")
 class MockTickProducer(
+    private val clock: Clock,
     @Qualifier("jmsTopicTemplate") private val jmsTopicTemplate: JmsTemplate,
-    private val tickProcessorProperties: TickProcessorProperties
+    private val tickProcessorProperties: TickProcessorProperties,
 ) {
   private val logger = LoggerFactory.getLogger(javaClass)
   private val producerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -100,7 +102,7 @@ class MockTickProducer(
               randomShock = (Random.nextDouble() * 2 - 1) // Provide a random shock
               )
 
-      val tickId = "${symbol}-${++tickCounter}-${System.currentTimeMillis()}"
+      val tickId = "${symbol}-${++tickCounter}-${Instant.now(clock).toEpochMilli()}"
       val tick =
           TickData(
               id = tickId,

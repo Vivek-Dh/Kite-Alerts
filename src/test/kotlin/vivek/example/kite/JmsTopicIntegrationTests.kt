@@ -4,6 +4,8 @@ import jakarta.jms.Connection
 import jakarta.jms.MessageListener
 import jakarta.jms.Session
 import java.math.BigDecimal
+import java.time.Clock
+import java.time.Instant
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -31,10 +33,12 @@ import vivek.example.kite.tickprocessor.model.TickData
 @ActiveProfiles("test")
 @TestPropertySource(locations = ["classpath:application-test.yml"])
 @Import(AmsTestConfig::class)
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@TestInstance(TestInstance.Lifecycle.PER_METHOD)
 class JmsTopicIntegrationTests {
 
   private val logger = LoggerFactory.getLogger(javaClass)
+
+  @Autowired private lateinit var clock: Clock
 
   @Autowired @Qualifier("jmsTopicTemplate") private lateinit var jmsTopicTemplate: JmsTemplate
 
@@ -128,9 +132,9 @@ class JmsTopicIntegrationTests {
   fun `duplicate messages consumed by topic should be ignored for processing`() {
     val testTopic = tickProcessorProperties.jms.topics.rawTicksHighActivity
     val symbol = "RELIANCE"
-    val tickId = "$symbol-1-${System.currentTimeMillis()}"
+    val tickId = "$symbol-1-${Instant.now(clock).toEpochMilli()}"
     val price = "2500.50"
-    val timestamp = System.currentTimeMillis()
+    val timestamp = Instant.now(clock).toEpochMilli()
 
     val tick =
         TickData(
@@ -206,7 +210,7 @@ class JmsTopicIntegrationTests {
         id = id,
         symbol = "RELIANCE",
         price = BigDecimal(price),
-        timestamp = System.currentTimeMillis() + timeOffset,
+        timestamp = Instant.now(clock).toEpochMilli() + timeOffset,
         volume = 100)
   }
 

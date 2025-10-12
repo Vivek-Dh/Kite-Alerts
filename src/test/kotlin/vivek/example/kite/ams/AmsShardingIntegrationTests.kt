@@ -1,7 +1,9 @@
 package vivek.example.kite.ams
 
 import java.math.BigDecimal
+import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import kotlin.system.measureTimeMillis
 import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
@@ -35,8 +37,10 @@ import vivek.example.kite.tickprocessor.model.AggregatedLHWindow
 @TestPropertySource(locations = ["classpath:application-test.yml"])
 @ExtendWith(OutputCaptureExtension::class)
 @Import(AmsTestConfig::class)
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@TestInstance(TestInstance.Lifecycle.PER_METHOD)
 class AmsShardingIntegrationTests {
+
+  @Autowired private lateinit var clock: Clock
 
   @Autowired private lateinit var jmsTopicTemplate: JmsTemplate
 
@@ -71,8 +75,8 @@ class AmsShardingIntegrationTests {
     val relianceWindow =
         AggregatedLHWindow(
             symbol = "RELIANCE",
-            windowStartTime = System.currentTimeMillis() - 500,
-            windowEndTime = System.currentTimeMillis(),
+            windowStartTime = Instant.now(clock).toEpochMilli() - 500,
+            windowEndTime = Instant.now(clock).toEpochMilli(),
             low = BigDecimal("2825.00"),
             high = BigDecimal("2830.00"), // This high (2830) is >= the alert threshold (2828)
             ticksCount = 10)
@@ -80,8 +84,8 @@ class AmsShardingIntegrationTests {
     val wiproWindow =
         AggregatedLHWindow(
             symbol = "WIPRO",
-            windowStartTime = System.currentTimeMillis() - 500,
-            windowEndTime = System.currentTimeMillis(),
+            windowStartTime = Instant.now(clock).toEpochMilli() - 500,
+            windowEndTime = Instant.now(clock).toEpochMilli(),
             low = BigDecimal("452.00"),
             high = BigDecimal("455.00"), // This high (455) is >= the alert threshold (454.50)
             ticksCount = 10)
@@ -101,8 +105,8 @@ class AmsShardingIntegrationTests {
     // --- Assertion ---
     await.withPollInterval(Duration.ofMillis(200)).atMost(Duration.ofSeconds(10)).until {
       val log = output.all
-      log.contains("[$relianceShard] TRIGGERED ALERTS") &&
-          log.contains("[$wiproShard] TRIGGERED ALERTS") &&
+      log.contains("[$relianceShard] Matched Alerts") &&
+          log.contains("[$wiproShard] Matched Alerts") &&
           log.contains("<- Finished processing for 'RELIANCE'") &&
           log.contains("<- Finished processing for 'WIPRO'")
     }
@@ -111,21 +115,21 @@ class AmsShardingIntegrationTests {
 
     // Verify correct shard processed each message
     assertTrue(
-        logOutput.contains("[$relianceShard] TRIGGERED ALERTS for RELIANCE") &&
+        logOutput.contains("[$relianceShard] Matched Alerts for RELIANCE") &&
             logOutput.contains("RELIANCE_gte_2828.00"),
         "Shard '$relianceShard' should have processed RELIANCE and triggered a GTE alert")
     assertTrue(
-        logOutput.contains("[$wiproShard] TRIGGERED ALERTS for WIPRO") &&
+        logOutput.contains("[$wiproShard] Matched Alerts for WIPRO") &&
             logOutput.contains("WIPRO_gte_454.50"),
         "Shard '$wiproShard' should have processed WIPRO and triggered a GTE alert")
 
     // Verify cross-contamination did not happen
     if (availableShards.size > 1 && relianceShard != wiproShard) {
       assertTrue(
-          !logOutput.contains("[$wiproShard] TRIGGERED ALERTS for RELIANCE"),
+          !logOutput.contains("[$wiproShard] Matched Alerts for RELIANCE"),
           "Shard '$wiproShard' should NOT have processed the RELIANCE message.")
       assertTrue(
-          !logOutput.contains("[$relianceShard] TRIGGERED ALERTS for WIPRO"),
+          !logOutput.contains("[$relianceShard] Matched Alerts for WIPRO"),
           "Shard '$relianceShard' should NOT have processed the WIPRO message.")
     }
   }
