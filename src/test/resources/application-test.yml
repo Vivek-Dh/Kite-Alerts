@@ -23,7 +23,7 @@ spring:
 # Test logging configuration
 logging:
   pattern:
-    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%-5level]){level} %clr(%-40.40logger{39}){cyan} %clr([%15.40thread]){blue} %clr(:){faint} %replace(%msg){'(?i)(Published (?:aggregated window for|TriggeredAlertEvent for alertId))','\u001B[35m$1\u001B[0m'}%n"
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%-5level]){level} %clr(%-40.40logger{39}){cyan} %clr([%15.40thread]){blue} %clr(:){faint} %replace(%replace(%msg){'(?i)(Published (?:aggregated window for|TriggeredAlertEvent for alertId))','\u001B[35m$1\u001B[0m'}){'(?i)(Matched Alerts for)','\u001B[33m$1\u001B[0m'}%n"
   level:
     root: WARN
     # Suppress Artemis logs
@@ -82,7 +82,7 @@ tick-processor:
     windowDurationMillis:
       HIGH_ACTIVITY: 2500
       MEDIUM_ACTIVITY: 5000
-      LOW_ACTIVITY: 10000
+      LOW_ACTIVITY: 6000
       # Concurrency settings for JMS listeners per category
     listenerConcurrency:
       HIGH_ACTIVITY: "5-10"

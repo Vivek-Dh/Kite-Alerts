@@ -16,7 +16,7 @@
             --border-color: #e0e0e0;
             --grid-color: #f1f1f1;
             --card-shadow: 0 1px 3px rgba(0,0,0,0.02);
-            --input-bg: #fafafa;
+            --input-bg: #f0f0f0;
             --highlight-bg: #f1f5f9;
             --text-accent: #334155;
         }
@@ -86,9 +86,19 @@
             z-index: 10;
         }
         [data-tooltip]:hover::after { opacity: 1; visibility: visible; }
-        /* Make annotation labels non-interactive so they don't block tooltips on markers */
         .apexcharts-text-annotation, .apexcharts-point-annotation-label {
             pointer-events: none;
+        }
+        details > summary { list-style: none; }
+        details > summary::-webkit-details-marker { display: none; }
+        details > summary::before {
+            content: '►';
+            margin-right: 8px;
+            font-size: 0.8em;
+            transition: transform 0.2s;
+        }
+        details[open] > summary::before {
+            transform: rotate(90deg);
         }
     </style>
 </head>
@@ -97,9 +107,7 @@
 <header class="px-6 py-3 flex-none flex justify-between items-center bg-[var(--bg-secondary)] border-b border-[var(--border-color)]">
     <h1 class="text-xl font-medium text-[var(--text-primary)] tracking-tight">KITE Terminal</h1>
     <div class="flex items-center gap-5 text-xs">
-        <div id="latest-alert-toast" class="latest-alert-hidden flex items-center gap-2 text-xs p-2 rounded-md bg-blue-50 border border-blue-200 dark:bg-blue-900/30 dark:border-blue-700/50">
-            <!-- Latest alert content injected here -->
-        </div>
+        <div id="latest-alert-toast" class="latest-alert-hidden flex items-center gap-2 text-xs p-2 rounded-md bg-blue-50 border border-blue-200 dark:bg-blue-900/30 dark:border-blue-700/50"></div>
         <div id="status-prices" class="flex items-center gap-2">
             <span id="dot-prices" class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
             <span id="txt-prices" class="text-[var(--text-secondary)]">Connecting...</span>
@@ -115,12 +123,48 @@
     </div>
 </header>
 
+<section class="p-4 pb-0">
+    <details class="kite-card rounded-md overflow-hidden">
+        <summary class="p-3 cursor-pointer font-medium text-[var(--text-primary)] hover:bg-[var(--highlight-bg)] transition-colors flex items-center">Create Alert</summary>
+        <div class="p-4 pt-3 border-t border-[var(--border-color)]">
+            <form id="create-alert-form">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                    <div>
+                        <label for="stockSymbol" class="text-xs font-medium text-[var(--text-secondary)]">Stock Symbol</label>
+                        <input type="text" id="stockSymbol" name="stockSymbol" required class="w-full mt-1 p-2 text-sm bg-[var(--input-bg)] border border-[var(--border-color)] rounded-md focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label for="userId" class="text-xs font-medium text-[var(--text-secondary)]">User ID</label>
+                        <input type="text" id="userId" name="userId" value="user_common" required class="w-full mt-1 p-2 text-sm bg-[var(--input-bg)] border border-[var(--border-color)] rounded-md focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label for="priceThreshold" class="text-xs font-medium text-[var(--text-secondary)]">Price Threshold</label>
+                        <input type="number" step="0.01" id="priceThreshold" name="priceThreshold" required class="w-full mt-1 p-2 text-sm bg-[var(--input-bg)] border border-[var(--border-color)] rounded-md focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label for="conditionType" class="text-xs font-medium text-[var(--text-secondary)]">Condition</label>
+                        <select id="conditionType" name="conditionType" required class="w-full mt-1 p-2 text-sm bg-[var(--input-bg)] border border-[var(--border-color)] rounded-md focus:ring-2 focus:ring-blue-500 outline-none appearance-none">
+                            <option value="EQ">Equal to (=)</option>
+                            <option value="GT">Greater than (>)</option>
+                            <option value="GTE">Greater than or equal to (>=)</option>
+                            <option value="LT">Less than (<)</option>
+                            <option value="LTE">Less than or equal to (<=)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-2 rounded-md hover:bg-blue-700 transition-colors h-9">Create Alert</button>
+                </div>
+                <div id="form-status" class="text-xs text-center mt-2 h-4"></div>
+            </form>
+        </div>
+    </details>
+</section>
+
 <main class="flex-1 flex gap-4 p-4 overflow-hidden w-full min-h-0">
 
     <section class="kite-card flex flex-col w-1/4 rounded-md p-4 min-h-0">
         <h2 class="text-base font-medium mb-3 text-[var(--text-primary)] flex-none">Triggered Alerts</h2>
         <div id="triggered-pane" class="scroll-y flex-1 overflow-y-auto space-y-2 pr-2 min-h-0">
-            <p id="triggered-placeholder" class="text-[var(--text-secondary)] text-sm text-center pt-4">Waiting for triggered alerts…</p>
+            <p id="triggered-placeholder" class="text-[var(--text-secondary)] text-sm text-center pt-4">Waiting for alerts…</p>
         </div>
     </section>
 
@@ -140,7 +184,7 @@
     <section class="kite-card flex flex-col w-1/4 rounded-md p-4 min-h-0">
         <h2 class="text-base font-medium mb-3 text-[var(--text-primary)] flex-none">Active Alerts</h2>
         <div id="active-pane" class="scroll-y flex-1 overflow-y-auto space-y-3 pr-2 min-h-0">
-            <p id="active-placeholder" class="text-[var(--text-secondary)] text-sm text-center pt-4">Loading active alerts…</p>
+            <p id="active-placeholder" class="text-[var(--text-secondary)] text-sm text-center pt-4">Loading alerts…</p>
         </div>
     </section>
 
@@ -150,12 +194,13 @@
     const ENDPOINTS = {
         PRICES:'http://localhost:8080/api/v1/prices/stream/aggregated',
         ALERTS:'http://localhost:8080/api/v1/alerts/stream',
-        ACTIVE:'http://localhost:8080/api/v1/alerts/active'
+        ACTIVE:'http://localhost:8080/api/v1/alerts/active',
+        CREATE: 'http://localhost:8080/api/v1/alerts/create'
     };
 
     const KITE_COLORS = ['#387ed1', '#f44336', '#4caf50', '#ff9800', '#9c27b0', '#00bcd4', '#795548', '#f06292'];
     const TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const state = { data: {}, visible: new Set(), annotations: [], chart: null, toastTimeout: null };
+    const state = { data: {}, priceDetails: {}, visible: new Set(), annotations: [], chart: null, toastTimeout: null };
 
     function getSymbolColor(symbol) {
         let hash = 0;
@@ -181,28 +226,11 @@
         chart: { type: 'line', height: '100%', animations: { enabled: true, easing: 'linear', dynamicAnimation: { speed: 500 } }, toolbar: { show: true }, zoom: { enabled: true } },
         colors: KITE_COLORS,
         stroke: { curve: 'smooth', width: 2 },
-        markers: {
-            size: 3,
-            strokeWidth: 0,
-            hover: { size: 7 }
-        },
+        markers: { size: 3, strokeWidth: 0, hover: { size: 7 } },
         xaxis: { type: 'datetime', labels: { style: { colors: 'var(--text-secondary)', fontSize: '12px' }, datetimeUTC: false, format: 'HH:mm:ss' }, tooltip: { enabled: false }, axisBorder: { show: true, color: 'var(--border-color)'}, axisTicks: { show: true, color: 'var(--border-color)'} },
-        yaxis: {
-            min: 0,
-            forceNiceScale: true,
-            labels: { style: { colors: 'var(--text-secondary)', fontSize: '12px' }, formatter: v => `₹${Number(v).toFixed(2)}` },
-            opposite: true
-        },
+        yaxis: { min: 0, forceNiceScale: true, labels: { style: { colors: 'var(--text-secondary)', fontSize: '12px' }, formatter: v => `₹${Number(v).toFixed(2)}` }, opposite: true },
         tooltip: { x: { format: 'dd MMM, HH:mm:ss' } },
-        grid: {
-            borderColor: 'var(--grid-color)',
-            strokeDashArray: 3,
-            xaxis: { lines: { show: true } },
-            yaxis: { lines: { show: true } },
-            padding: {
-                bottom: 30
-            }
-        },
+        grid: { borderColor: 'var(--grid-color)', strokeDashArray: 3, xaxis: { lines: { show: true } }, yaxis: { lines: { show: true } }, padding: { bottom: 30 } },
         legend: { show: false },
         annotations: { points: [], texts: [] }
     });
@@ -231,24 +259,20 @@
     function updateData(d) {
         const { symbol, windowEndTime, low, high } = d;
         if (!symbol) return;
-
         const oneMinuteAgo = Date.now() - 60000;
-
         const avgPrice = (low + high) / 2;
         if (!state.data[symbol]) {
             state.data[symbol] = []; state.visible.add(symbol); buildLegend();
         }
         state.data[symbol].push({ x: windowEndTime, y: avgPrice });
         state.data[symbol] = state.data[symbol].filter(p => p.x >= oneMinuteAgo);
-
+        state.priceDetails[symbol] = { avg: avgPrice, low, high };
         state.annotations = state.annotations.filter(a => a.x >= oneMinuteAgo);
-
         drawChart();
     }
 
     function drawChart() {
         const series = [...state.visible].map(s => ({ name: s, data: state.data[s] }));
-
         const lineLabels = series.map(s => {
             if (!s.data || s.data.length === 0) return null;
             const lastPoint = s.data[s.data.length - 1];
@@ -272,14 +296,7 @@
                 },
             };
         }).filter(Boolean);
-
-        chart.updateOptions({
-            series,
-            annotations: {
-                points: state.annotations,
-                texts: lineLabels
-            }
-        });
+        chart.updateOptions({ series, annotations: { points: state.annotations, texts: lineLabels } });
     }
 
     function buildLegend() {
@@ -309,7 +326,6 @@
         const pane = document.querySelector('#triggered-pane');
         const placeholder = document.querySelector('#triggered-placeholder');
         if (placeholder) placeholder.remove();
-
         const { alert: { stockSymbol, conditionType, priceThreshold }, triggeredAtUtc, triggeredPrice } = ev;
         const color = getSymbolColor(stockSymbol);
         const operatorMap = { GT: '>', GTE: '≥', LT: '<', LTE: '≤', EQ: '=' };
@@ -326,40 +342,20 @@
                               <span class="block text-xs font-medium text-[var(--text-accent)] mt-1 bg-[var(--highlight-bg)] px-1.5 py-0.5 rounded" data-tooltip="${TIMEZONE}">${localTime}</span>
                           </div>`;
         pane.prepend(card);
-
-        while (pane.children.length > 20) {
-            pane.lastElementChild.remove();
-        }
-
+        while (pane.children.length > 20) { pane.lastElementChild.remove(); }
         const toast = document.querySelector('#latest-alert-toast');
         toast.innerHTML = `<span class="w-2 h-2 rounded-full" style="background:${color}"></span><span class="mono font-semibold text-xs" style="color:${color}">${stockSymbol}</span><span class="text-xs text-gray-600 dark:text-gray-300">triggered at ₹${triggeredPrice.toFixed(2)}</span>`;
         toast.classList.remove('latest-alert-hidden'); toast.classList.add('latest-alert-visible');
         if (state.toastTimeout) clearTimeout(state.toastTimeout);
         state.toastTimeout = setTimeout(() => { toast.classList.add('latest-alert-hidden'); toast.classList.remove('latest-alert-visible'); }, 5000);
-
         state.annotations.push({
             x: new Date(triggeredAtUtc).getTime(),
             y: triggeredPrice,
             marker: { size: 0 },
             image: { path: getAlertIcon(color), width: 20, height: 20, offsetX: -10, offsetY: -10 },
-            label: {
-                text: `${operatorMap[conditionType] || '?'} ${priceThreshold}`,
-                borderColor: color,
-                offsetY: -30,
-                style: {
-                    background: color,
-                    color: '#fff',
-                    fontSize: '11px',
-                    fontFamily: 'Inter, sans-serif',
-                    padding: { left: 6, right: 6, top: 3, bottom: 4 }
-                }
-            }
+            label: { text: `${operatorMap[conditionType] || '?'} ${priceThreshold}`, borderColor: color, offsetY: -30, style: { background: color, color: '#fff', fontSize: '11px', fontFamily: 'Inter, sans-serif', padding: { left: 6, right: 6, top: 3, bottom: 4 } } }
         });
-
-        while (state.annotations.length > 20) {
-            state.annotations.shift();
-        }
-
+        while (state.annotations.length > 20) { state.annotations.shift(); }
         drawChart();
     }
 
@@ -375,6 +371,15 @@
                 const color = getSymbolColor(symbol);
                 const block = document.createElement('div');
                 block.className = 'bg-[var(--bg-secondary)] rounded p-2.5 border border-[var(--border-color)]';
+                const priceInfo = state.priceDetails[symbol];
+                let priceHtml = '';
+                if (priceInfo) {
+                    priceHtml = `<div class="text-xs text-[var(--text-secondary)] mt-1 flex justify-between items-center">
+                                    <span>Avg: <span class="font-medium text-[var(--text-primary)]">₹${priceInfo.avg.toFixed(2)}</span></span>
+                                    <span style="color: brown" class="font-medium text-[var(--text-primary)]">L: ₹${priceInfo.low.toFixed(2)}</span>
+                                    <span style="color: darkolivegreen" class="font-medium text-[var(--text-primary)]">H: ₹${priceInfo.high.toFixed(2)}</span>
+                                 </div>`;
+                }
                 let listHtml = list.map(a => {
                     const updatedTime = formatTime(a.updatedAtUtc);
                     const timeHtml = updatedTime ? `<div class="text-xs text-[var(--text-secondary)] mt-2">Updated: <span class="font-medium text-[var(--text-accent)]" data-tooltip="${TIMEZONE}">${updatedTime}</span></div>` : '';
@@ -386,17 +391,51 @@
                                 ${timeHtml}
                             </div>`;
                 }).join('');
-                block.innerHTML = `<h4 class="font-medium text-sm mb-1 flex items-center gap-2" style="color:${color}"><span class="w-2 h-2 rounded-full" style="background:${color}"></span><span class="mono">${symbol}</span></h4>${listHtml}`;
+                block.innerHTML = `<h4 class="font-medium text-sm mb-1 flex items-center gap-2" style="color:${color}"><span class="w-2 h-2 rounded-full" style="background:${color}"></span><span class="mono">${symbol}</span></h4>${priceHtml}${listHtml}`;
                 pane.append(block);
             });
         } catch (e) { console.error(e); pane.innerHTML = `<p class="text-red-500 text-sm text-center pt-4">Failed to load active alerts.</p>`; }
     }
 
-    // Theme Toggle Logic
+    document.getElementById('create-alert-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        const statusDiv = document.getElementById('form-status');
+        const payload = {
+            stockSymbol: formData.get('stockSymbol').toUpperCase(),
+            userId: formData.get('userId'),
+            priceThreshold: parseFloat(formData.get('priceThreshold')),
+            conditionType: formData.get('conditionType')
+        };
+        statusDiv.textContent = 'Creating...';
+        statusDiv.className = 'text-xs text-center mt-2 text-yellow-500';
+        try {
+            const response = await fetch(ENDPOINTS.CREATE, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to create alert: ${errorText}`);
+            }
+            statusDiv.textContent = 'Alert created successfully!';
+            statusDiv.className = 'text-xs text-center mt-2 text-green-500';
+            form.reset();
+            fetchActive();
+        } catch (error) {
+            console.error(error);
+            statusDiv.textContent = error.message;
+            statusDiv.className = 'text-xs text-center mt-2 text-red-500';
+        } finally {
+            setTimeout(() => statusDiv.textContent = '', 3000);
+        }
+    });
+
     const themeToggle = document.getElementById('theme-toggle');
     const lightIcon = document.getElementById('theme-icon-light');
     const darkIcon = document.getElementById('theme-icon-dark');
-
     function applyTheme(theme) {
         if (theme === 'dark') {
             document.documentElement.classList.add('dark');
@@ -405,22 +444,15 @@
             document.documentElement.classList.remove('dark');
             lightIcon.classList.remove('hidden'); darkIcon.classList.add('hidden');
         }
-        chart.updateOptions({
-            theme: { mode: theme },
-            tooltip: { theme: theme }
-        });
-        if (state.data && Object.keys(state.data).length > 0) {
-            drawChart();
-        }
+        chart.updateOptions({ theme: { mode: theme }, tooltip: { theme: theme } });
+        if (state.data && Object.keys(state.data).length > 0) { drawChart(); }
     }
-
     themeToggle.addEventListener('click', () => {
         const isDark = document.documentElement.classList.contains('dark');
         const newTheme = isDark ? 'light' : 'dark';
         localStorage.setItem('theme', newTheme);
         applyTheme(newTheme);
     });
-
     const savedTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     applyTheme(savedTheme);
 
@@ -432,6 +464,4 @@
 
 </body>
 </html>
-
-
 

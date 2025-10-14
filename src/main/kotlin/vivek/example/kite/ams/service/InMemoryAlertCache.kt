@@ -44,7 +44,7 @@ class InMemoryAlertCache(
     return alertsById.values.toSet()
   }
 
-  private fun addAlert(alert: Alert) {
+  fun addAlert(alert: Alert) {
     val symbolCache = cache.computeIfAbsent(alert.stockSymbol) { SymbolAlertsContainer() }
     val alertDetail = AlertDetail(alert.id, alert.alertId, alert.conditionType)
 
@@ -64,6 +64,7 @@ class InMemoryAlertCache(
               .computeIfAbsent(alert.priceThreshold) { mutableListOf() }
               .add(alertDetail)
     }
+    alertsById[alert.id] = alert
   }
 
   fun removeAlert(id: UUID): Boolean {

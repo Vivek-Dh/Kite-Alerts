@@ -103,10 +103,11 @@ class AmsShardingIntegrationTests {
     }
 
     // --- Assertion ---
-    await.withPollInterval(Duration.ofMillis(200)).atMost(Duration.ofSeconds(10)).until {
+    await.withPollInterval(Duration.ofMillis(2000)).atMost(Duration.ofSeconds(10)).until {
       val log = output.all
-      log.contains("[$relianceShard] Matched Alerts") &&
-          log.contains("[$wiproShard] Matched Alerts") &&
+      println("Polling log $log")
+      log.contains("[$relianceShard] \u001B[33mMatched Alerts for\u001B[0m RELIANCE:") &&
+          log.contains("[$wiproShard] \u001B[33mMatched Alerts for\u001B[0m WIPRO:") &&
           log.contains("<- Finished processing for 'RELIANCE'") &&
           log.contains("<- Finished processing for 'WIPRO'")
     }
@@ -115,21 +116,21 @@ class AmsShardingIntegrationTests {
 
     // Verify correct shard processed each message
     assertTrue(
-        logOutput.contains("[$relianceShard] Matched Alerts for RELIANCE") &&
+        logOutput.contains("[$relianceShard] \u001B[33mMatched Alerts for\u001B[0m RELIANCE") &&
             logOutput.contains("RELIANCE_gte_2828.00"),
         "Shard '$relianceShard' should have processed RELIANCE and triggered a GTE alert")
     assertTrue(
-        logOutput.contains("[$wiproShard] Matched Alerts for WIPRO") &&
+        logOutput.contains("[$wiproShard] \u001B[33mMatched Alerts for\u001B[0m WIPRO") &&
             logOutput.contains("WIPRO_gte_454.50"),
         "Shard '$wiproShard' should have processed WIPRO and triggered a GTE alert")
 
     // Verify cross-contamination did not happen
     if (availableShards.size > 1 && relianceShard != wiproShard) {
       assertTrue(
-          !logOutput.contains("[$wiproShard] Matched Alerts for RELIANCE"),
+          !logOutput.contains("[$wiproShard] \u001B[33mMatched Alerts for\u001B[0m RELIANCE"),
           "Shard '$wiproShard' should NOT have processed the RELIANCE message.")
       assertTrue(
-          !logOutput.contains("[$relianceShard] Matched Alerts for WIPRO"),
+          !logOutput.contains("[$relianceShard] \u001B[33mMatched Alerts for\u001B[0m WIPRO"),
           "Shard '$relianceShard' should NOT have processed the WIPRO message.")
     }
   }

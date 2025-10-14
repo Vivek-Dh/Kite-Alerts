@@ -80,10 +80,14 @@ class AlertMatchingService(
 
     if (triggeredAlerts.isNotEmpty()) {
       logger.info(
-          "[{}] Matched Alerts for {}: {}", shard.name, symbol, triggeredAlerts.joinToString())
+          "[{}] Matched Alerts for {}: {}, for window {}",
+          shard.name,
+          symbol,
+          triggeredAlerts.joinToString(),
+          window)
 
       // Instead of just logging, publish events to the new topic
-      publishTriggeredAlerts(triggeredAlerts, triggerDetails, shard)
+      publishTriggeredAlerts(triggeredAlerts, triggerDetails, shard, window)
     }
 
     logger.info(
@@ -156,7 +160,8 @@ class AlertMatchingService(
   private fun publishTriggeredAlerts(
       alertIds: Set<UUID>,
       triggerDetails: Map<UUID, BigDecimal>,
-      shard: Shard
+      shard: Shard,
+      window: AggregatedLHWindow
   ) {
     alertIds.forEach { alertId ->
       val alert = shard.cache.getAlertDetails(alertId)
@@ -175,6 +180,7 @@ class AlertMatchingService(
               alert = alert,
               triggeredAt = Instant.now(clock).toEpochMilli(),
               triggeredPrice = triggeredPrice,
+              window = window,
               message =
                   "Alert '${alert.alertId}' for user '${alert.userId}' triggered for symbol ${alert.stockSymbol}.")
 
@@ -184,7 +190,12 @@ class AlertMatchingService(
         message.setStringProperty("stockSymbol", alert.stockSymbol)
         message
       }
-      logger.info("[{}] Published TriggeredAlertEvent for alertId: {}", shard.name, alert.alertId)
+      logger.info(
+          "[{}] Published TriggeredAlertEvent for alertId: {}, userId: {} and window: {}",
+          shard.name,
+          alert.alertId,
+          alert.userId,
+          window)
       shard.cache.removeAlert(alertId)
     }
   }
