@@ -8,10 +8,12 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import kotlin.test.fail
+import org.awaitility.kotlin.await
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.springframework.beans.factory.annotation.Autowired
@@ -25,9 +27,9 @@ import org.springframework.test.web.reactive.server.WebTestClient
 import vivek.example.kite.ams.model.Alert
 import vivek.example.kite.ams.model.ConditionType
 import vivek.example.kite.ams.model.TriggeredAlertEvent
-import vivek.example.kite.ams.repository.MockAlertRepository
 import vivek.example.kite.ams.shard.ShardManager
 import vivek.example.kite.common.config.CommonProperties
+import vivek.example.kite.common.service.SymbolService
 import vivek.example.kite.tickprocessor.model.AggregatedLHWindow
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
@@ -42,20 +44,39 @@ class TriggeredAlertStreamIntegrationTests {
   @Autowired private lateinit var commonProperties: CommonProperties
 
   @Autowired private lateinit var objectMapper: ObjectMapper
+  @Autowired private lateinit var shardManager: ShardManager
+  @Autowired private lateinit var symbolService: SymbolService
 
-  @Autowired
-  private lateinit var shardManager: ShardManager // Autowire the manager to access shard details
+  @BeforeEach
+  fun waitForDataInitialization() {
+    // DataInitializer runs on startup. We must wait for all mock alerts to be created
+    // and propagated through the outbox pattern to the L1 cache before running any tests.
+    val totalMockAlerts = symbolService.getAllSymbols().size * 5 // Mock repo creates 5 per symbol
+    await.atMost(Duration.ofSeconds(15)).until {
+      val allCachedAlerts =
+          symbolService
+              .getAllSymbols()
+              .flatMap { symbol ->
+                shardManager.getShardForSymbol(symbol)?.cache?.getActiveAlerts() ?: emptySet()
+              }
+              .toSet()
+      allCachedAlerts.size >= totalMockAlerts
+    }
+  }
 
   @Test
   fun `should publish triggered alert to JMS and stream it via SSE controller`() {
     val testSymbol = "RELIANCE"
     val testUserId = "user_common"
 
-    val testShard = shardManager.getShardForSymbol(testSymbol)
+    val testShard = shardManager.getShardForSymbol(testSymbol)!!
     assertNotNull(testShard)
     val alertKey = "${testSymbol}_gte_2828.00"
+    val userId = "user_common"
     val targetAlert =
-        testShard!!.cache.getAlertDetails(MockAlertRepository.TestAlertIds.RELIANCE_GTE_2828)!!
+        testShard.cache.getActiveAlerts().firstOrNull {
+          it.alertId == alertKey && it.userId == userId
+        }!!
     assertNotNull(targetAlert)
     assertEquals(alertKey, targetAlert.alertId)
     assertEquals(testUserId, targetAlert.userId)
@@ -233,23 +254,15 @@ class TriggeredAlertStreamIntegrationTests {
       expectedTriggeredPrice: (AggregatedLHWindow) -> BigDecimal,
       priceComparison: (BigDecimal, BigDecimal) -> Unit
   ) {
-    val testShard = shardManager.getShardForSymbol(symbol)
+    val testShard = shardManager.getShardForSymbol(symbol)!!
     assertNotNull(testShard, "Shard for symbol $symbol should not be null")
 
-    // Get the alert by ID using the test alert IDs from MockAlertRepository
-    val alertId =
-        when (alertKey) {
-          "RELIANCE_gte_2828.00" -> MockAlertRepository.TestAlertIds.RELIANCE_GTE_2828
-          "RELIANCE_gt_2856.00" -> MockAlertRepository.TestAlertIds.RELIANCE_GT_2856
-          "RELIANCE_lte_2772.00" -> MockAlertRepository.TestAlertIds.RELIANCE_LTE_2772
-          "RELIANCE_lt_2744.00" -> MockAlertRepository.TestAlertIds.RELIANCE_LT_2744
-          "RELIANCE_eq_2800.00" -> MockAlertRepository.TestAlertIds.RELIANCE_EQ_2800
-          else -> error("Unexpected alert key: $alertKey")
-        }
-
-    val targetAlert = testShard!!.cache.getAlertDetails(alertId)!!
+    val targetAlert =
+        testShard.cache.getActiveAlerts().firstOrNull {
+          it.alertId == alertKey && it.userId == userId
+        }!!
     assertNotNull(targetAlert, "Alert with key $alertKey not found")
-    assertEquals(alertId, targetAlert.id, "Alert ID mismatch for alert $alertId")
+    assertEquals(alertKey, targetAlert.alertId, "Alert ID mismatch for alert $alertKey")
     assertEquals(userId, targetAlert.userId, "User ID mismatch for alert $alertKey")
 
     val client = WebTestClient.bindToServer().baseUrl("http://localhost:9090").build()

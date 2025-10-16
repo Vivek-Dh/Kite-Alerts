@@ -178,7 +178,7 @@ class AlertMatchingService(
           TriggeredAlertEvent(
               eventId = UUID.randomUUID().toString(),
               alert = alert,
-              triggeredAt = Instant.now(clock).toEpochMilli(),
+              triggeredAt = Instant.now(clock),
               triggeredPrice = triggeredPrice,
               window = window,
               message =

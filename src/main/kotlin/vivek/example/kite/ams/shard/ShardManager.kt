@@ -1,10 +1,9 @@
 package vivek.example.kite.ams.shard
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
 import jakarta.jms.MessageListener
-import java.time.Clock
-import java.util.UUID
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.jms.config.DefaultJmsListenerContainerFactory
@@ -13,18 +12,16 @@ import org.springframework.jms.config.SimpleJmsListenerEndpoint
 import org.springframework.jms.support.converter.MessageConverter
 import org.springframework.stereotype.Component
 import vivek.example.kite.ams.config.AmsProperties
-import vivek.example.kite.ams.model.Alert
-import vivek.example.kite.ams.model.AlertRequest
-import vivek.example.kite.ams.repository.AlertRepository
+import vivek.example.kite.ams.repository.RocksDbAlertRepository
 import vivek.example.kite.ams.service.AlertMatchingService
 import vivek.example.kite.ams.service.InMemoryAlertCache
+import vivek.example.kite.ams.service.RocksDbService
 import vivek.example.kite.common.config.CommonProperties
 import vivek.example.kite.common.service.SymbolService
 import vivek.example.kite.tickprocessor.model.AggregatedLHWindow
 
 @Component
 class ShardManager(
-    private val clock: Clock,
     private val commonProperties: CommonProperties,
     private val amsProperties: AmsProperties,
     private val alertMatchingService: AlertMatchingService,
@@ -34,7 +31,8 @@ class ShardManager(
     private val messageConverter: MessageConverter,
     @Qualifier("amsListenerContainerFactory")
     private val amsListenerContainerFactory: DefaultJmsListenerContainerFactory,
-    private val alertRepository: AlertRepository
+    private val rocksDbService: RocksDbService,
+    private val objectMapper: ObjectMapper
 ) {
   private val logger = LoggerFactory.getLogger(javaClass)
   private val shards = mutableMapOf<String, Shard>()
@@ -62,7 +60,9 @@ class ShardManager(
       val shardConfig = amsProperties.shards[shardName]!!
       logger.info("--> Creating shard: '$shardName' for symbols: $assignedSymbols")
 
-      val inMemoryCache = InMemoryAlertCache(alertRepository, assignedSymbols)
+      val rocksDbAlertRepository = RocksDbAlertRepository(rocksDbService, shardName, objectMapper)
+      val inMemoryCache = InMemoryAlertCache(rocksDbAlertRepository, assignedSymbols)
+      // Initialization will now pull from RocksDB
       inMemoryCache.initializeCache()
 
       val shard = Shard(shardName, assignedSymbols, inMemoryCache)
@@ -78,37 +78,17 @@ class ShardManager(
     }
   }
 
-  // New public method to allow tests to access shard information
+  /**
+   * Finds the shard responsible for a given symbol by looking up the pre-computed assignments map.
+   * This is a fast, in-memory operation.
+   */
   fun getShardForSymbol(symbol: String): Shard? {
     if (!this::assignments.isInitialized) return null
-    val shardName = assignments.entries.find { symbol in it.value }?.key ?: return null
+
+    // Find the shard name from the assignments map.
+    val shardName = assignments.entries.find { symbol in it.value }?.key
+
     return shards[shardName]
-  }
-
-  fun createAlert(alertRequest: AlertRequest): Alert {
-    val alertId =
-        "${alertRequest.stockSymbol}_${alertRequest.conditionType.toString().lowercase()}_${alertRequest.priceThreshold}"
-    val cache = getShardForSymbol(alertRequest.stockSymbol)?.cache!!
-    if (cache.getActiveAlerts().find { alert ->
-      alert.userId == alertRequest.userId && alert.alertId == alertId
-    } != null) {
-      throw IllegalArgumentException(
-          "Alert already exists for user ${alertRequest.userId} and condition--price ${alertRequest.conditionType}_${alertRequest.priceThreshold}")
-    }
-    val alert =
-        Alert(
-            UUID.randomUUID(),
-            alertId,
-            alertRequest.stockSymbol,
-            alertRequest.userId,
-            alertRequest.priceThreshold,
-            alertRequest.conditionType,
-            true,
-            clock.instant().toEpochMilli())
-
-    cache.addAlert(alert)
-    logger.info("Alert created $alert")
-    return cache.getAlertDetails(alert.id)!!
   }
 
   private fun registerListenerForShard(shard: Shard, concurrency: String) {

@@ -14,6 +14,7 @@ import org.awaitility.kotlin.withPollInterval
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.extension.ExtendWith
@@ -23,10 +24,12 @@ import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.context.annotation.Import
 import org.springframework.jms.core.JmsTemplate
+import org.springframework.test.annotation.DirtiesContext
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.TestPropertySource
 import vivek.example.kite.ams.config.AmsProperties
 import vivek.example.kite.ams.shard.AmsTestConfig
+import vivek.example.kite.ams.shard.ShardManager
 import vivek.example.kite.ams.shard.ShardingStrategy
 import vivek.example.kite.common.config.CommonProperties
 import vivek.example.kite.common.service.SymbolService
@@ -38,6 +41,7 @@ import vivek.example.kite.tickprocessor.model.AggregatedLHWindow
 @ExtendWith(OutputCaptureExtension::class)
 @Import(AmsTestConfig::class)
 @TestInstance(TestInstance.Lifecycle.PER_METHOD)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class AmsShardingIntegrationTests {
 
   @Autowired private lateinit var clock: Clock
@@ -51,6 +55,24 @@ class AmsShardingIntegrationTests {
   @Autowired private lateinit var shardingStrategy: ShardingStrategy
 
   @Autowired private lateinit var symbolService: SymbolService
+  @Autowired private lateinit var shardManager: ShardManager
+
+  @BeforeEach
+  fun waitForDataInitialization() {
+    // DataInitializer runs on startup. We must wait for all mock alerts to be created
+    // and propagated through the outbox pattern to the L1 cache before running any tests.
+    val totalMockAlerts = symbolService.getAllSymbols().size * 5 // Mock repo creates 5 per symbol
+    await.atMost(Duration.ofSeconds(15)).until {
+      val allCachedAlerts =
+          symbolService
+              .getAllSymbols()
+              .flatMap { symbol ->
+                shardManager.getShardForSymbol(symbol)?.cache?.getActiveAlerts() ?: emptySet()
+              }
+              .toSet()
+      allCachedAlerts.size >= totalMockAlerts
+    }
+  }
 
   @Test
   fun `should route messages to the correct dynamically assigned shard`(output: CapturedOutput) {
@@ -105,7 +127,6 @@ class AmsShardingIntegrationTests {
     // --- Assertion ---
     await.withPollInterval(Duration.ofMillis(2000)).atMost(Duration.ofSeconds(10)).until {
       val log = output.all
-      println("Polling log $log")
       log.contains("[$relianceShard] \u001B[33mMatched Alerts for\u001B[0m RELIANCE:") &&
           log.contains("[$wiproShard] \u001B[33mMatched Alerts for\u001B[0m WIPRO:") &&
           log.contains("<- Finished processing for 'RELIANCE'") &&

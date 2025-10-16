@@ -1,10 +1,14 @@
 package vivek.example.kite.ams.model
 
+import com.fasterxml.jackson.annotation.JsonIgnore
+import io.hypersistence.utils.hibernate.type.json.JsonType
+import jakarta.persistence.*
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
-import java.util.UUID
+import java.util.*
+import org.hibernate.annotations.Type
 import vivek.example.kite.tickprocessor.model.AggregatedLHWindow
 
 enum class ConditionType {
@@ -15,17 +19,53 @@ enum class ConditionType {
   EQ
 }
 
+@Entity
+@Table(name = "alerts")
 data class Alert(
-    val id: UUID,
+    @Id val id: UUID = UUID.randomUUID(),
     val alertId: String,
     val stockSymbol: String,
     val userId: String,
-    val priceThreshold: BigDecimal,
-    val conditionType: ConditionType,
-    val isOneTime: Boolean,
-    val updatedAt: Long,
-    val updatedAtUtc: LocalDateTime =
-        Instant.ofEpochMilli(updatedAt).atZone(ZoneOffset.UTC).toLocalDateTime()
+    @Column(precision = 10, scale = 2) val priceThreshold: BigDecimal,
+    @Enumerated(EnumType.STRING) val conditionType: ConditionType,
+    var isActive: Boolean = true
+) {
+
+  // This annotation ensures JPA/Hibernate never tries to insert or update this column,
+  // allowing the database's `DEFAULT` value to be used on creation.
+  @Column(insertable = false, updatable = false) var createdAt: Instant? = null
+
+  // This annotation ensures the database trigger is the sole source of updates for this column.
+  @Column(insertable = false, updatable = false) var updatedAt: Instant? = null
+
+  // These transient fields are not persisted but are available for serialization in API responses.
+  @get:Transient
+  @get:JsonIgnore
+  val createdAtUtc: LocalDateTime?
+    get() = createdAt?.atZone(ZoneOffset.UTC)?.toLocalDateTime()
+
+  @get:Transient
+  @get:JsonIgnore
+  val updatedAtUtc: LocalDateTime?
+    get() = updatedAt?.atZone(ZoneOffset.UTC)?.toLocalDateTime()
+}
+
+@Entity
+@Table(name = "alert_outbox_events")
+data class AlertOutboxEvent(
+    @Id val id: UUID = UUID.randomUUID(),
+    @Type(JsonType::class) @Column(columnDefinition = "jsonb") val payload: AlertChangeEvent,
+
+    // Changed from Long? to Instant?
+    var processedAt: Instant? = null
+) {
+  @Column(insertable = false, updatable = false) var createdAt: Instant? = null
+}
+
+// Not an entity, this is the JSON payload for the outbox event
+data class AlertChangeEvent(
+    val eventType: String, // CREATE, UPDATE, DELETE
+    val alert: Alert
 )
 
 data class AlertRequest(
@@ -35,22 +75,25 @@ data class AlertRequest(
     val conditionType: ConditionType
 )
 
-// Minimal info stored in the L1 in-memory cache lists
 data class AlertDetail(
     val id: UUID,
     val alertId: String,
-    // We store conditionType here in case we consolidate maps later and need to post-filter
-    val conditionType: ConditionType
+    val conditionType: ConditionType,
+    val priceThreshold: BigDecimal,
+    val isActive: Boolean
 )
 
-// New data class for the event published when an alert is triggered
 data class TriggeredAlertEvent(
     val eventId: String,
-    val alert: Alert, // Include the full original alert for context
-    val triggeredAt: Long,
-    val triggeredAtUtc: LocalDateTime =
-        Instant.ofEpochMilli(triggeredAt).atZone(ZoneOffset.UTC).toLocalDateTime(),
-    val triggeredPrice: BigDecimal, // The price (High or Low) that caused the trigger
+    val alert: Alert,
+    val triggeredAt: Instant,
+    val triggeredPrice: BigDecimal,
     val window: AggregatedLHWindow,
     val message: String
-)
+) {
+  // This transient field is not persisted but is available for serialization in API responses.
+  @get:Transient
+  @get:JsonIgnore
+  val triggeredAtUtc: LocalDateTime
+    get() = triggeredAt.atZone(ZoneOffset.UTC).toLocalDateTime()
+}

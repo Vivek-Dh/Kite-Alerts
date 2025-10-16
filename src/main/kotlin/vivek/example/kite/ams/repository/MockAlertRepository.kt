@@ -1,35 +1,27 @@
 package vivek.example.kite.ams.repository
 
 import java.math.BigDecimal
-import java.time.Clock
-import java.time.Instant
 import java.util.UUID
 import kotlin.random.Random
-import org.springframework.context.annotation.Primary
 import org.springframework.stereotype.Repository
 import vivek.example.kite.ams.model.Alert
 import vivek.example.kite.ams.model.ConditionType
 import vivek.example.kite.common.config.CommonProperties
 
 /**
- * An in-memory mock repository for user alerts. In a real application, this would connect to a
- * persistent database (L3).
- *
- * This implementation generates a consistent set of mock alerts for any given list of symbols.
+ * An in-memory mock repository for user alerts. This class is now primarily used by the
+ * DataInitializer to generate a consistent set of mock data to be inserted into the L3 database on
+ * startup.
  */
-@Primary
 @Repository
-class MockAlertRepository(
-    private val clock: Clock,
-    private val commonProperties: CommonProperties
-) : AlertRepository {
+class MockAlertRepository(private val commonProperties: CommonProperties) : AlertRepository {
 
   companion object TestAlertIds {
-    val RELIANCE_GTE_2828 = UUID.randomUUID()
-    val RELIANCE_GT_2856 = UUID.randomUUID()
-    val RELIANCE_LTE_2772 = UUID.randomUUID()
-    val RELIANCE_LT_2744 = UUID.randomUUID()
-    val RELIANCE_EQ_2800 = UUID.randomUUID()
+    val RELIANCE_GTE_2828: UUID = UUID.fromString("00000000-0000-0000-0000-000000000001")
+    val RELIANCE_GT_2856: UUID = UUID.fromString("00000000-0000-0000-0000-000000000002")
+    val RELIANCE_LTE_2772: UUID = UUID.fromString("00000000-0000-0000-0000-000000000003")
+    val RELIANCE_LT_2744: UUID = UUID.fromString("00000000-0000-0000-0000-000000000004")
+    val RELIANCE_EQ_2800: UUID = UUID.fromString("00000000-0000-0000-0000-000000000005")
   }
 
   override fun findActiveAlertsForSymbols(symbols: List<String>): List<Alert> {
@@ -52,51 +44,43 @@ class MockAlertRepository(
     val priceDown1 = (basePrice * BigDecimal.valueOf(0.99)).setScale(2, BigDecimal.ROUND_HALF_UP)
     val priceDown2 = (basePrice * BigDecimal.valueOf(0.98)).setScale(2, BigDecimal.ROUND_HALF_UP)
 
+    // Timestamps are no longer needed here; the database will set them.
     return listOf(
         Alert(
-            if (symbol.equals("RELIANCE")) RELIANCE_GTE_2828 else UUID.randomUUID(),
-            "${symbol}_gte_${priceUp1}",
-            symbol,
-            "user_common",
-            priceUp1,
-            ConditionType.GTE,
-            false,
-            Instant.now(clock).toEpochMilli()),
+            id = if (symbol == "RELIANCE") RELIANCE_GTE_2828 else UUID.randomUUID(),
+            alertId = "${symbol}_gte_${priceUp1}",
+            stockSymbol = symbol,
+            userId = "user_common",
+            priceThreshold = priceUp1,
+            conditionType = ConditionType.GTE),
         Alert(
-            if (symbol.equals("RELIANCE")) RELIANCE_GT_2856 else UUID.randomUUID(),
-            "${symbol}_gt_${priceUp2}",
-            symbol,
-            "user_common",
-            priceUp2,
-            ConditionType.GT,
-            true,
-            Instant.now(clock).toEpochMilli()),
+            id = if (symbol == "RELIANCE") RELIANCE_GT_2856 else UUID.randomUUID(),
+            alertId = "${symbol}_gt_${priceUp2}",
+            stockSymbol = symbol,
+            userId = "user_common",
+            priceThreshold = priceUp2,
+            conditionType = ConditionType.GT,
+            isActive = true),
         Alert(
-            if (symbol.equals("RELIANCE")) RELIANCE_LTE_2772 else UUID.randomUUID(),
-            "${symbol}_lte_${priceDown1}",
-            symbol,
-            "user_1",
-            priceDown1,
-            ConditionType.LTE,
-            false,
-            Instant.now(clock).toEpochMilli()),
+            id = if (symbol == "RELIANCE") RELIANCE_LTE_2772 else UUID.randomUUID(),
+            alertId = "${symbol}_lte_${priceDown1}",
+            stockSymbol = symbol,
+            userId = "user_1",
+            priceThreshold = priceDown1,
+            conditionType = ConditionType.LTE),
         Alert(
-            if (symbol.equals("RELIANCE")) RELIANCE_LT_2744 else UUID.randomUUID(),
-            "${symbol}_lt_${priceDown2}",
-            symbol,
-            "user_2",
-            priceDown2,
-            ConditionType.LT,
-            false,
-            Instant.now(clock).toEpochMilli()),
+            id = if (symbol == "RELIANCE") RELIANCE_LT_2744 else UUID.randomUUID(),
+            alertId = "${symbol}_lt_${priceDown2}",
+            stockSymbol = symbol,
+            userId = "user_2",
+            priceThreshold = priceDown2,
+            conditionType = ConditionType.LT),
         Alert(
-            if (symbol.equals("RELIANCE")) RELIANCE_EQ_2800 else UUID.randomUUID(),
-            "${symbol}_eq_${basePrice}",
-            symbol,
-            "user_1",
-            basePrice,
-            ConditionType.EQ,
-            false,
-            Instant.now(clock).toEpochMilli()))
+            id = if (symbol == "RELIANCE") RELIANCE_EQ_2800 else UUID.randomUUID(),
+            alertId = "${symbol}_eq_${basePrice}",
+            stockSymbol = symbol,
+            userId = "user_1",
+            priceThreshold = basePrice,
+            conditionType = ConditionType.EQ))
   }
 }

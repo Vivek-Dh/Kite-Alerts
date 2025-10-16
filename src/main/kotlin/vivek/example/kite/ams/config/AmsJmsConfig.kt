@@ -23,7 +23,7 @@ class AmsJmsConfig {
     val factory = DefaultJmsListenerContainerFactory()
     configurer.configure(factory, connectionFactory)
     factory.setPubSubDomain(true)
-    factory.setSessionAcknowledgeMode(Session.AUTO_ACKNOWLEDGE) // As per original config
+    factory.setSessionAcknowledgeMode(Session.CLIENT_ACKNOWLEDGE)
     factory.setSubscriptionShared(
         true) // Enable shared subscription for load balancing across real instances
     return factory

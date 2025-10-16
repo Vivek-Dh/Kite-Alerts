@@ -8,6 +8,24 @@ spring:
   config:
     activate:
       on-profile: test
+  # This tells Spring Boot not to replace the datasource with an embedded one.
+  # We will provide the Testcontainers URL below.
+  test:
+    database:
+      replace: none
+  # The magic URL for Testcontainers. It will automatically start a PostgreSQL
+  # container and configure the datasource to connect to it.
+  datasource:
+    url: jdbc:tc:postgresql:15-alpine:///testdb
+    username: user
+    password: password
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+  jpa:
+    hibernate:
+      ddl-auto: none # We rely entirely on Flyway
+  # Flyway is enabled to run our standard V1 migration against the test container.
+  flyway:
+    enabled: true
   artemis:
     mode: embedded
     embedded:
@@ -18,7 +36,7 @@ spring:
     pub-sub-domain: true
     listener:
       session:
-        acknowledge-mode: auto
+        acknowledge-mode: client
 
 # Test logging configuration
 logging:
@@ -31,8 +49,13 @@ logging:
     org.apache.activemq.artemis: WARN
     # Keep your application logs at INFO
     vivek.example.kite: INFO
+    # Silence noisy Testcontainers logs
+    com.github.dockerjava: WARN
+    org.testcontainers: INFO
+
 
 common:
+  alertDefinitionUpdatesTopic: "test.alert.definition.updates"
   aggregatedUpdatesTopic: "test.aggregated.updates"
   triggeredAlertsTopic: "test.triggered.alerts"
   stocks: [ "RELIANCE", "INFY", "WIPRO", "HDFCBANK", "ICICIBANK", "TCS", "SBIN", "KOTAKBANK", "ASIANPAINT", "NESTLEIND" ]
@@ -102,3 +125,8 @@ ams:
   consistentHashing:
     virtualNodesPerShard: 2 # Lower number for faster test startup
   simulateWorkDelayMs: 1000 # Enable the 1-second delay ONLY for tests
+  rocksDb:
+    basePath: "/mnt/c/kite_alerts_test/rocksdb"
+  outbox:
+    relayIntervalMs: 500
+
