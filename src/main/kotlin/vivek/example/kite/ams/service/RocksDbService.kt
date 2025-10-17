@@ -70,5 +70,13 @@ class RocksDbService(
     logger.info("Closing all RocksDB instances...")
     dbs.values.forEach { it.close() }
     dbs.clear()
+    // Delete directories if test
+    if (rocksDbConfig.basePath.contains("kite_alerts_test")) {
+      val dbPath = File(rocksDbConfig.basePath)
+      // delete all directories inside
+      dbPath.listFiles()?.forEach { file ->
+        if (file.isDirectory) file.deleteRecursively() else file.delete()
+      }
+    }
   }
 }
