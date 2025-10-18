@@ -8,12 +8,10 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import kotlin.test.fail
-import org.awaitility.kotlin.await
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.springframework.beans.factory.annotation.Autowired
@@ -24,12 +22,11 @@ import org.springframework.test.annotation.DirtiesContext
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.TestPropertySource
 import org.springframework.test.web.reactive.server.WebTestClient
+import vivek.example.kite.BaseIntegrationTest
 import vivek.example.kite.ams.model.Alert
 import vivek.example.kite.ams.model.ConditionType
 import vivek.example.kite.ams.model.TriggeredAlertEvent
-import vivek.example.kite.ams.shard.ShardManager
 import vivek.example.kite.common.config.CommonProperties
-import vivek.example.kite.common.service.SymbolService
 import vivek.example.kite.tickprocessor.model.AggregatedLHWindow
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
@@ -37,32 +34,13 @@ import vivek.example.kite.tickprocessor.model.AggregatedLHWindow
 @TestPropertySource(locations = ["classpath:application-test.yml"])
 @TestInstance(TestInstance.Lifecycle.PER_METHOD)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-class TriggeredAlertStreamIntegrationTests {
+class TriggeredAlertStreamIntegrationTests : BaseIntegrationTest() {
 
   @Autowired private lateinit var jmsTopicTemplate: JmsTemplate
 
   @Autowired private lateinit var commonProperties: CommonProperties
 
   @Autowired private lateinit var objectMapper: ObjectMapper
-  @Autowired private lateinit var shardManager: ShardManager
-  @Autowired private lateinit var symbolService: SymbolService
-
-  @BeforeEach
-  fun waitForDataInitialization() {
-    // DataInitializer runs on startup. We must wait for all mock alerts to be created
-    // and propagated through the outbox pattern to the L1 cache before running any tests.
-    val totalMockAlerts = symbolService.getAllSymbols().size * 5 // Mock repo creates 5 per symbol
-    await.atMost(Duration.ofSeconds(15)).until {
-      val allCachedAlerts =
-          symbolService
-              .getAllSymbols()
-              .flatMap { symbol ->
-                shardManager.getShardForSymbol(symbol)?.cache?.getActiveAlerts() ?: emptySet()
-              }
-              .toSet()
-      allCachedAlerts.size >= totalMockAlerts
-    }
-  }
 
   @Test
   fun `should publish triggered alert to JMS and stream it via SSE controller`() {

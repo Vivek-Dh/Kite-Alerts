@@ -2,6 +2,9 @@ server:
   port: 8080
 
 spring:
+  output:
+    ansi:
+      enabled: always
   config:
     activate:
       on-profile: local
@@ -16,8 +19,12 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: false
   flyway:
     enabled: true
+    baseline-on-migrate: true
+    schemas: public
+    default-schema: public
   artemis:
     mode: embedded
     embedded:
@@ -66,24 +73,24 @@ tick-processor:
       MEDIUM_ACTIVITY: [ "INFY", "TCS", "SBIN", "KOTAKBANK" ]
       LOW_ACTIVITY: [ "WIPRO", "ASIANPAINT", "NESTLEIND" ]
       # Price simulation parameters
-    tickVolatility: 0.005 # 1%
+    tickVolatility: 0.01 # 1%
     driftUpdateTicks: 1000 # Change drift bias every 1000 ticks
     driftBiasRange: 0.1 # New drift bias will be between -0.1 and +0.1
     # Throughput control per category
     frequencyMillis:
-      HIGH_ACTIVITY: 9000   # ~20 ticks/sec
-      MEDIUM_ACTIVITY: 19000 # ~10 ticks/sec
-      LOW_ACTIVITY: 49000  # ~2 ticks/sec
+      HIGH_ACTIVITY: 50  # ~20 ticks/sec
+      MEDIUM_ACTIVITY: 100 # ~10 ticks/sec
+      LOW_ACTIVITY: 500  # ~2 ticks/sec
 
     # Configuration for the Window Aggregator
   windowAggregator:
     enabled: true
-    timerCheckIntervalMillis: 5000 # How often to check for closable windows
+    timerCheckIntervalMillis: 3000 # How often to check for closable windows
     # Window durations per category
     windowDurationMillis:
-      HIGH_ACTIVITY: 10000
-      MEDIUM_ACTIVITY: 20000
-      LOW_ACTIVITY: 50000
+      HIGH_ACTIVITY: 250
+      MEDIUM_ACTIVITY: 500
+      LOW_ACTIVITY: 1000
       # Concurrency settings for JMS listeners per category
     listenerConcurrency:
       HIGH_ACTIVITY: "5-10"
@@ -113,11 +120,16 @@ ams:
     basePath: "/mnt/c/kite_alerts/rocksdb"
   outbox:
     relayIntervalMs: 2000
+  reconciliation:
+    intervalMs: 30000
+    pageSize: 20
 
 logging:
   pattern:
-    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%-5level]){level} %clr(%-40.40logger{39}){cyan} %clr([%15.40thread]){blue} %clr(:){faint} %replace(%replace(%msg){'(?i)(Published (?:aggregated window for|TriggeredAlertEvent for alertId))','\u001B[35m$1\u001B[0m'}){'(?i)(Matched Alerts for)','\u001B[33m$1\u001B[0m'}%n"
+#    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%-5level]){level} %clr(%-40.40logger{39}){cyan} %clr([%15.40thread]){blue} %clr(:){faint} %replace(%replace(%msg){'(?i)(Published (?:aggregated window for|TriggeredAlertEvent for alertId))','\u001B[35m$1\u001B[0m'}){'(?i)(Matched Alerts for)','\u001B[33m$1\u001B[0m'}%n"
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%-5level]){level} %clr(%-40.40logger{39}){cyan} %clr([%15.40thread]){blue} %clr(:){faint} %replace(%replace(%replace(%replace(%msg){'(?i)(Published (?:aggregated window for|TriggeredAlertEvent for alertId))','\u001B[35m$1\u001B[0m'}){'(?i)(Matched Alerts for)','\u001B[33m$1\u001B[0m'}){'(?i)(Processing alert change event)','\u001B[36m$1\u001B[0m'}){'(?i)(Deleted alert)','\u001B[31m$1\u001B[0m'}%n"
   level:
+    root: INFO
     # Suppress Artemis logs
     org.apache.activemq.audit: ERROR
     org.apache.activemq.artemis: WARN

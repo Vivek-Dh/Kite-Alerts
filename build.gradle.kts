@@ -5,6 +5,7 @@ plugins {
     kotlin("jvm") version "1.9.23"
     kotlin("plugin.spring") version "1.9.23"
     kotlin("plugin.jpa") version "1.9.23" // This plugin generates no-arg constructors for JPA entities
+    kotlin("kapt") version "1.9.10"
     id("org.springframework.boot") version "3.2.5"
     id("io.spring.dependency-management") version "1.1.5"
     id("com.diffplug.spotless") version "6.25.0"
@@ -18,6 +19,7 @@ repositories {
 }
 
 dependencies {
+    kapt("org.springframework.boot:spring-boot-configuration-processor")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.8.1")
@@ -47,8 +49,8 @@ dependencies {
     runtimeOnly("org.postgresql:postgresql")
 
     // Flyway for database migrations
-    implementation("org.flywaydb:flyway-core")
-    implementation("org.flywaydb:flyway-database-postgresql")
+    implementation("org.flywaydb:flyway-core:11.14.0")
+    implementation("org.flywaydb:flyway-database-postgresql:11.14.0")
 
     // Test dependencies
     testImplementation("org.springframework.boot:spring-boot-starter-test") {

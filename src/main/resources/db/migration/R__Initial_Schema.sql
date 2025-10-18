@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS alerts (
 );
 
 -- Trigger to automatically update the updated_at timestamp on row update
-CREATE TRIGGER set_timestamp
+CREATE OR REPLACE TRIGGER set_timestamp
     BEFORE UPDATE ON alerts
     FOR EACH ROW
 EXECUTE FUNCTION trigger_set_timestamp();
@@ -37,9 +37,22 @@ CREATE TABLE IF NOT EXISTS alert_outbox_events (
                                      created_at TIMESTAMP NOT NULL DEFAULT timezone('utc', now())
 );
 
+-- New table to persist the history of all triggered alerts
+CREATE TABLE IF NOT EXISTS triggered_alerts_history (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    alert_id UUID NOT NULL,
+    user_id VARCHAR(255) NOT NULL,
+    stock_symbol VARCHAR(255) NOT NULL,
+    triggered_price NUMERIC(10, 2) NOT NULL,
+    triggered_at TIMESTAMP NOT NULL,
+    alert_payload JSONB NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT timezone('utc', now())
+);
+
 -- Indexes to speed up queries
 -- A user can only have one unique alert for a given symbol, condition, and price.
-CREATE UNIQUE INDEX IF NOT EXISTS uq_alert_user ON alerts (alert_id, user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_alert_user ON alerts (alert_id, user_id) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_alerts_stock_symbol ON alerts (stock_symbol);
 CREATE INDEX IF NOT EXISTS idx_outbox_unprocessed ON alert_outbox_events (processed_at, created_at) WHERE processed_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_triggered_history_user ON triggered_alerts_history(user_id);
 

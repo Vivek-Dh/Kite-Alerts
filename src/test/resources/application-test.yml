@@ -5,6 +5,9 @@ server:
   port: 9090
 
 spring:
+  output:
+    ansi:
+      enabled: always
   config:
     activate:
       on-profile: test
@@ -41,14 +44,15 @@ spring:
 # Test logging configuration
 logging:
   pattern:
-    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%-5level]){level} %clr(%-40.40logger{39}){cyan} %clr([%15.40thread]){blue} %clr(:){faint} %replace(%replace(%msg){'(?i)(Published (?:aggregated window for|TriggeredAlertEvent for alertId))','\u001B[35m$1\u001B[0m'}){'(?i)(Matched Alerts for)','\u001B[33m$1\u001B[0m'}%n"
+#    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%-5level]){level} %clr(%-40.40logger{39}){cyan} %clr([%15.40thread]){blue} %clr(:){faint} %replace(%replace(%msg){'(?i)(Published (?:aggregated window for|TriggeredAlertEvent for alertId))','\u001B[35m$1\u001B[0m'}){'(?i)(Matched Alerts for)','\u001B[33m$1\u001B[0m'}%n"
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%-5level]){level} %clr(%-40.40logger{39}){cyan} %clr([%15.40thread]){blue} %clr(:){faint} %replace(%replace(%replace(%replace(%msg){'(?i)(Published (?:aggregated window for|TriggeredAlertEvent for alertId))','\u001B[35m$1\u001B[0m'}){'(?i)(Matched Alerts for)','\u001B[33m$1\u001B[0m'}){'(?i)(Processing alert change event)','\u001B[36m$1\u001B[0m'}){'(?i)(Deleted alert)','\u001B[31m$1\u001B[0m'}%n"
   level:
-    root: WARN
+    root: INFO
     # Suppress Artemis logs
     org.apache.activemq.audit: ERROR
     org.apache.activemq.artemis: WARN
-    # Keep your application logs at INFO
-    vivek.example.kite: INFO
+    # Keep your application logs at DEBUG for tests
+    vivek.example.kite: DEBUG
     # Silence noisy Testcontainers logs
     com.github.dockerjava: WARN
     org.testcontainers: INFO
@@ -103,9 +107,9 @@ tick-processor:
     timerCheckIntervalMillis: 1000 # How often to check for closable windows
     # Window durations per category
     windowDurationMillis:
-      HIGH_ACTIVITY: 2500
-      MEDIUM_ACTIVITY: 5000
-      LOW_ACTIVITY: 6000
+      HIGH_ACTIVITY: 1000
+      MEDIUM_ACTIVITY: 2000
+      LOW_ACTIVITY: 3000
       # Concurrency settings for JMS listeners per category
     listenerConcurrency:
       HIGH_ACTIVITY: "5-10"
@@ -124,9 +128,12 @@ ams:
       listener-concurrency: "4-6"
   consistentHashing:
     virtualNodesPerShard: 2 # Lower number for faster test startup
-  simulateWorkDelayMs: 1000 # Enable the 1-second delay ONLY for tests
+  simulateWorkDelayMs: 500 # Enable the 1-second delay ONLY for tests
   rocksDb:
     basePath: "/mnt/c/kite_alerts_test/rocksdb"
   outbox:
-    relayIntervalMs: 500
+    relayIntervalMs: 2000
+  reconciliation:
+    intervalMs: 10000
+    pageSize: 100
 

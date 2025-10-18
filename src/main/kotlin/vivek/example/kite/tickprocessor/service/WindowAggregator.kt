@@ -141,7 +141,8 @@ class WindowAggregator(
           message.setStringProperty("stockSymbol", symbol)
           message
         }
-    logger.info("Published aggregated window for $symbol: L=$low, H=$high over ${ticks.size} ticks")
+    logger.info(
+        "Published aggregated window for $symbol: L=$low, H=$high, startTime=$startTime, endTime=$endTime over ${ticks.size} ticks")
   }
 
   private fun getCategoryForSymbol(symbol: String): String? {

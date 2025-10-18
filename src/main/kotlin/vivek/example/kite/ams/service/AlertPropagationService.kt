@@ -31,21 +31,31 @@ class AlertPropagationService(
 
     if (shard == null) {
       logger.warn(
-          "Received alert change for symbol {} which is not assigned to any shard. Ignoring.",
+          "Received alert change {} for symbol {} which is not assigned to any shard. Ignoring.",
+          alert.getLogKey(),
           alert.stockSymbol)
       // This is a valid terminal state, so we don't throw an exception.
       // The message should be acknowledged and discarded.
       return
     }
 
-    logger.info("Processing alert change for alertId {} on shard {}", alert.id, shard.name)
+    logger.info(
+        "Processing alert change event {},  {} for alertId {} on shard {}",
+        event.eventType,
+        alert.getLogKey(),
+        alert.id,
+        shard.name)
 
-    // Update L2 Cache (RocksDB)
-    rocksDbService.saveAlert(shard.name, alert)
+    // Update L2 Cache (RocksDB) based on the event type
+    when (event.eventType) {
+      "CREATE",
+      "UPDATE" -> rocksDbService.saveAlert(shard.name, alert)
+      "DELETE" -> rocksDbService.deleteAlert(shard.name, alert)
+    }
 
-    // Update L1 Cache (In-Memory)
-    shard.cache.updateAlert(alert)
+    // Update L1 Cache (In-Memory). This is also idempotent.
+    shard.cache.addOrUpdateAlert(alert)
 
-    logger.info("Updated L1 and L2 caches for alertId {}", alert.id)
+    logger.debug("Updated L1 and L2 caches for alertId {}", alert.id)
   }
 }

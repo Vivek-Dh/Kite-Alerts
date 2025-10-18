@@ -45,7 +45,7 @@ class TriggeredAlertStreamService(
       containerFactory = "amsListenerContainerFactory" // Can reuse the generic AMS factory
       )
   fun receiveTriggeredAlert(event: TriggeredAlertEvent) {
-    logger.info("SSE Service received triggered alert: {}", event.alert.alertId)
+    logger.debug("SSE Service received triggered alert: {}", event.alert.alertId)
     // Emit the event into the hot stream for any connected UI clients
     runBlocking { _triggeredAlerts.emit(event) }
   }

@@ -59,7 +59,7 @@
         .mono { font-family: 'Menlo', 'Consolas', 'Roboto Mono', monospace; }
         .latest-alert-hidden {
             opacity: 0;
-            transform: translateY(-10px) scale(0.95);
+            transform: translateY(-20px) scale(0.9);
             transition: opacity 0.3s ease, transform 0.3s ease;
             pointer-events: none;
         }
@@ -67,6 +67,16 @@
             opacity: 1;
             transform: translateY(0) scale(1);
         }
+
+        @keyframes toast-pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+            50% { transform: scale(1.02); box-shadow: 0 0 10px 4px var(--toast-glow-color, rgba(59, 130, 246, 0.5)); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+        }
+        .toast-attention {
+            animation: toast-pulse 1.5s ease-out;
+        }
+
         [data-tooltip] { position: relative; cursor: help; }
         [data-tooltip]::after {
             content: attr(data-tooltip);
@@ -107,7 +117,7 @@
 <header class="px-6 py-3 flex-none flex justify-between items-center bg-[var(--bg-secondary)] border-b border-[var(--border-color)]">
     <h1 class="text-xl font-medium text-[var(--text-primary)] tracking-tight">KITE Terminal</h1>
     <div class="flex items-center gap-5 text-xs">
-        <div id="latest-alert-toast" class="latest-alert-hidden flex items-center gap-2 text-xs p-2 rounded-md bg-blue-50 border border-blue-200 dark:bg-blue-900/30 dark:border-blue-700/50"></div>
+        <div id="latest-alert-toast" class="latest-alert-hidden flex items-center gap-2 text-xs p-2 rounded-md"></div>
         <div id="status-prices" class="flex items-center gap-2">
             <span id="dot-prices" class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
             <span id="txt-prices" class="text-[var(--text-secondary)]">Connecting...</span>
@@ -123,7 +133,7 @@
     </div>
 </header>
 
-<section class="p-4 pb-0">
+<section class="p-4 pb-0 space-y-2">
     <details class="kite-card rounded-md overflow-hidden">
         <summary class="p-3 cursor-pointer font-medium text-[var(--text-primary)] hover:bg-[var(--highlight-bg)] transition-colors flex items-center">Create Alert</summary>
         <div class="p-4 pt-3 border-t border-[var(--border-color)]">
@@ -153,21 +163,34 @@
                     </div>
                     <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-2 rounded-md hover:bg-blue-700 transition-colors h-9">Create Alert</button>
                 </div>
-                <div id="form-status" class="text-xs text-center mt-2 h-4"></div>
+                <div id="create-form-status" class="text-xs text-center mt-2 h-4"></div>
+            </form>
+        </div>
+    </details>
+    <details class="kite-card rounded-md overflow-hidden">
+        <summary class="p-3 cursor-pointer font-medium text-[var(--text-primary)] hover:bg-[var(--highlight-bg)] transition-colors flex items-center">Delete Alert</summary>
+        <div class="p-4 pt-3 border-t border-[var(--border-color)]">
+            <form id="delete-alert-form">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                    <div class="col-span-4">
+                        <label for="deleteAlertId" class="text-xs font-medium text-[var(--text-secondary)]">Alert UUID</label>
+                        <input type="text" id="deleteAlertId" name="alertId" required placeholder="Paste the alert UUID from the 'Active Alerts' list" class="w-full mt-1 p-2 text-sm bg-[var(--input-bg)] border border-[var(--border-color)] rounded-md focus:ring-2 focus:ring-red-500 outline-none mono">
+                    </div>
+                    <button type="submit" class="w-full bg-red-600 text-white font-semibold py-2 rounded-md hover:bg-red-700 transition-colors h-9">Delete Alert</button>
+                </div>
+                <div id="delete-form-status" class="text-xs text-center mt-2 h-4"></div>
             </form>
         </div>
     </details>
 </section>
 
 <main class="flex-1 flex gap-4 p-4 overflow-hidden w-full min-h-0">
-
     <section class="kite-card flex flex-col w-1/4 rounded-md p-4 min-h-0">
         <h2 class="text-base font-medium mb-3 text-[var(--text-primary)] flex-none">Triggered Alerts</h2>
         <div id="triggered-pane" class="scroll-y flex-1 overflow-y-auto space-y-2 pr-2 min-h-0">
             <p id="triggered-placeholder" class="text-[var(--text-secondary)] text-sm text-center pt-4">Waiting for alerts…</p>
         </div>
     </section>
-
     <section class="kite-card flex flex-col flex-1 rounded-md p-4 min-h-0">
         <div class="flex flex-wrap justify-between items-center mb-3 gap-3 flex-none">
             <div id="legend" class="flex flex-wrap gap-x-4 gap-y-2 text-sm text-[var(--text-secondary)]">Waiting for symbols…</div>
@@ -180,27 +203,29 @@
             <div id="chart" class="absolute top-0 left-0 w-full h-full"></div>
         </div>
     </section>
-
     <section class="kite-card flex flex-col w-1/4 rounded-md p-4 min-h-0">
         <h2 class="text-base font-medium mb-3 text-[var(--text-primary)] flex-none">Active Alerts</h2>
         <div id="active-pane" class="scroll-y flex-1 overflow-y-auto space-y-3 pr-2 min-h-0">
             <p id="active-placeholder" class="text-[var(--text-secondary)] text-sm text-center pt-4">Loading alerts…</p>
         </div>
     </section>
-
 </main>
+
+<div id="copy-toast" class="fixed bottom-5 right-5 bg-green-600 text-white text-sm font-semibold py-2 px-4 rounded-md shadow-lg transition-transform duration-300 transform translate-y-20 opacity-0">
+    ID copied to clipboard!
+</div>
 
 <script>
     const ENDPOINTS = {
         PRICES:'http://localhost:8080/api/v1/prices/stream/aggregated',
         ALERTS:'http://localhost:8080/api/v1/alerts/stream',
         ACTIVE:'http://localhost:8080/api/v1/alerts/active',
-        CREATE: 'http://localhost:8080/api/v1/alerts/create'
+        CREATE: 'http://localhost:8080/api/v1/alerts/create',
+        DELETE: 'http://localhost:8080/api/v1/alerts/delete/'
     };
-
     const KITE_COLORS = ['#387ed1', '#f44336', '#4caf50', '#ff9800', '#9c27b0', '#00bcd4', '#795548', '#f06292'];
     const TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const state = { data: {}, priceDetails: {}, visible: new Set(), annotations: [], chart: null, toastTimeout: null };
+    const state = { data: {}, priceDetails: {}, visible: new Set(), annotations: [], chart: null, toastTimeout: null, copyToastTimeout: null };
 
     function getSymbolColor(symbol) {
         let hash = 0;
@@ -215,10 +240,7 @@
 
     function formatTime(utcTimestamp) {
         if (!utcTimestamp) return null;
-        const dateInput = typeof utcTimestamp === 'string' && !utcTimestamp.endsWith('Z')
-            ? utcTimestamp.replace(' ', 'T') + 'Z'
-            : utcTimestamp;
-        return new Date(dateInput).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        return new Date(utcTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     }
 
     const chart = new ApexCharts(document.querySelector('#chart'), {
@@ -324,12 +346,11 @@
 
     function addTriggeredAlert(ev) {
         const pane = document.querySelector('#triggered-pane');
-        const placeholder = document.querySelector('#triggered-placeholder');
-        if (placeholder) placeholder.remove();
-        const { alert: { stockSymbol, conditionType, priceThreshold }, triggeredAtUtc, triggeredPrice } = ev;
+        document.querySelector('#triggered-placeholder')?.remove();
+        const { alert: { stockSymbol, conditionType, priceThreshold }, triggeredAt, triggeredPrice } = ev;
         const color = getSymbolColor(stockSymbol);
         const operatorMap = { GT: '>', GTE: '≥', LT: '<', LTE: '≤', EQ: '=' };
-        const localTime = formatTime(triggeredAtUtc);
+        const localTime = formatTime(triggeredAt);
         const card = document.createElement('div');
         card.className = 'fade-in flex justify-between items-center p-2.5 rounded border-l-4 bg-[var(--input-bg)]';
         card.style.borderColor = color;
@@ -343,13 +364,26 @@
                           </div>`;
         pane.prepend(card);
         while (pane.children.length > 20) { pane.lastElementChild.remove(); }
+
         const toast = document.querySelector('#latest-alert-toast');
         toast.innerHTML = `<span class="w-2 h-2 rounded-full" style="background:${color}"></span><span class="mono font-semibold text-xs" style="color:${color}">${stockSymbol}</span><span class="text-xs text-gray-600 dark:text-gray-300">triggered at ₹${triggeredPrice.toFixed(2)}</span>`;
-        toast.classList.remove('latest-alert-hidden'); toast.classList.add('latest-alert-visible');
+
+        const isDark = document.documentElement.classList.contains('dark');
+        const [r, g, b] = color.match(/\w\w/g).map(x => parseInt(x, 16));
+        toast.style.setProperty('--toast-glow-color', `rgba(${r}, ${g}, ${b}, 0.6)`);
+        toast.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${isDark ? 0.2 : 0.1})`;
+        toast.style.borderColor = `rgba(${r}, ${g}, ${b}, ${isDark ? 0.5 : 0.3})`;
+
+        toast.classList.remove('latest-alert-hidden', 'toast-attention');
+        toast.classList.add('latest-alert-visible');
+        void toast.offsetWidth;
+        toast.classList.add('toast-attention');
+
         if (state.toastTimeout) clearTimeout(state.toastTimeout);
-        state.toastTimeout = setTimeout(() => { toast.classList.add('latest-alert-hidden'); toast.classList.remove('latest-alert-visible'); }, 5000);
+        state.toastTimeout = setTimeout(() => { toast.classList.add('latest-alert-hidden'); toast.classList.remove('latest-alert-visible', 'toast-attention'); }, 5000);
+
         state.annotations.push({
-            x: new Date(triggeredAtUtc).getTime(),
+            x: new Date(triggeredAt).getTime(),
             y: triggeredPrice,
             marker: { size: 0 },
             image: { path: getAlertIcon(color), width: 20, height: 20, offsetX: -10, offsetY: -10 },
@@ -376,18 +410,18 @@
                 if (priceInfo) {
                     priceHtml = `<div class="text-xs text-[var(--text-secondary)] mt-1 flex justify-between items-center">
                                     <span>Avg: <span class="font-medium text-[var(--text-primary)]">₹${priceInfo.avg.toFixed(2)}</span></span>
-                                    <span style="color: brown" class="font-medium text-[var(--text-primary)]">L: ₹${priceInfo.low.toFixed(2)}</span>
-                                    <span style="color: darkolivegreen" class="font-medium text-[var(--text-primary)]">H: ₹${priceInfo.high.toFixed(2)}</span>
+                                    <span style="color: brown" class="font-medium">L: ₹${priceInfo.low.toFixed(2)}</span>
+                                    <span style="color: darkolivegreen" class="font-medium">H: ₹${priceInfo.high.toFixed(2)}</span>
                                  </div>`;
                 }
                 let listHtml = list.map(a => {
-                    const updatedTime = formatTime(a.updatedAtUtc);
-                    const timeHtml = updatedTime ? `<div class="text-xs text-[var(--text-secondary)] mt-2">Updated: <span class="font-medium text-[var(--text-accent)]" data-tooltip="${TIMEZONE}">${updatedTime}</span></div>` : '';
+                    const timeHtml = a.updatedAt ? `<div class="text-xs text-[var(--text-secondary)] mt-2">Updated: <span class="font-medium text-[var(--text-accent)]" data-tooltip="${TIMEZONE}">${formatTime(a.updatedAt)}</span></div>` : '';
                     return `<div class="py-2 border-t border-[var(--border-color)] first:border-t-0">
                                 <div class="flex justify-between items-center text-xs">
                                     <span class="text-xs bg-[var(--highlight-bg)] text-[var(--text-accent)] font-medium px-2 py-1 rounded">User ${a.userId}</span>
                                     <span class="mono bg-[var(--bg-primary)] px-1.5 py-0.5 rounded">${a.conditionType} ₹${a.priceThreshold}</span>
                                 </div>
+                                 <div class="text-xs text-gray-400 mt-1 mono cursor-pointer" title="Click to copy ID" onclick="copyToClipboard('${a.id}')">ID: ${a.id}</div>
                                 ${timeHtml}
                             </div>`;
                 }).join('');
@@ -397,11 +431,34 @@
         } catch (e) { console.error(e); pane.innerHTML = `<p class="text-red-500 text-sm text-center pt-4">Failed to load active alerts.</p>`; }
     }
 
+    function showCopyToast() {
+        const toast = document.getElementById('copy-toast');
+        if (state.copyToastTimeout) clearTimeout(state.copyToastTimeout);
+        toast.classList.remove('opacity-0', 'translate-y-20');
+        state.copyToastTimeout = setTimeout(() => {
+            toast.classList.add('opacity-0', 'translate-y-20');
+        }, 2000);
+    }
+
+    function copyToClipboard(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+            document.execCommand('copy');
+            showCopyToast();
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+        }
+        document.body.removeChild(ta);
+    }
+
     document.getElementById('create-alert-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const form = e.target;
         const formData = new FormData(form);
-        const statusDiv = document.getElementById('form-status');
+        const statusDiv = document.getElementById('create-form-status');
         const payload = {
             stockSymbol: formData.get('stockSymbol').toUpperCase(),
             userId: formData.get('userId'),
@@ -420,16 +477,61 @@
                 const errorText = await response.text();
                 throw new Error(`Failed to create alert: ${errorText}`);
             }
-            statusDiv.textContent = 'Alert created successfully!';
-            statusDiv.className = 'text-xs text-center mt-2 text-green-500';
+            const data = await response.json();
+            statusDiv.textContent = `Alert created successfully with id ${data.id}!`;
+            statusDiv.className = 'text-xs text-center mt-2 text-green-600';
             form.reset();
             fetchActive();
         } catch (error) {
             console.error(error);
             statusDiv.textContent = error.message;
-            statusDiv.className = 'text-xs text-center mt-2 text-red-500';
+            statusDiv.className = 'text-xs text-center mt-2 text-red-700';
         } finally {
             setTimeout(() => statusDiv.textContent = '', 3000);
+        }
+    });
+
+    document.getElementById('delete-alert-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const alertId = form.alertId.value.trim();
+        const statusDiv = document.getElementById('delete-form-status');
+
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(alertId)) {
+            statusDiv.textContent = 'Invalid UUID format.';
+            statusDiv.className = 'text-xs text-center mt-2 text-red-500';
+            setTimeout(() => statusDiv.textContent = '', 3000);
+            return;
+        }
+
+        statusDiv.textContent = 'Deleting...';
+        statusDiv.className = 'text-xs text-center mt-2 text-yellow-500';
+
+        try {
+            const response = await fetch(ENDPOINTS.DELETE + alertId, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                statusDiv.textContent = `Alert: id - ${data.id}, key - ${data.alertId}, user - ${data.userId} deleted successfully!`;
+                statusDiv.className = 'text-xs text-center mt-2 text-red-700';
+                form.reset();
+                fetchActive();
+            } else if (response.status === 404) {
+                statusDiv.textContent = 'Alert not found.';
+                statusDiv.className = 'text-xs text-center mt-2 text-red-500';
+            } else {
+                const errorText = await response.text();
+                throw new Error(`Failed to delete alert: ${errorText}`);
+            }
+        } catch (error) {
+            console.error(error);
+            statusDiv.textContent = error.message;
+            statusDiv.className = 'text-xs text-center mt-2 text-red-500';
+        } finally {
+            setTimeout(() => statusDiv.textContent = '', 7000);
         }
     });
 

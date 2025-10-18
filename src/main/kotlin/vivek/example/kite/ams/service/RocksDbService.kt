@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.annotation.PreDestroy
 import java.io.File
 import java.nio.charset.StandardCharsets
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import org.rocksdb.Options
 import org.rocksdb.RocksDB
@@ -21,11 +22,16 @@ class RocksDbService(
   private val dbs = ConcurrentHashMap<String, RocksDB>()
 
   companion object {
-    private const val SYMBOL_INDEX_PREFIX = "symbol-idx::"
+    private val ALERT_PREFIX = "alert::".toByteArray(StandardCharsets.UTF_8)
 
-    fun getSymbolIndexPrefix(symbol: String): ByteArray {
-      return "$SYMBOL_INDEX_PREFIX$symbol::".toByteArray(StandardCharsets.UTF_8)
-    }
+    fun getAlertKey(alertId: UUID): ByteArray =
+        "alert::$alertId".toByteArray(StandardCharsets.UTF_8)
+
+    fun getSymbolIndexPrefix(symbol: String): ByteArray =
+        "symbol-idx::$symbol::".toByteArray(StandardCharsets.UTF_8)
+
+    fun getSymbolIndexKey(symbol: String, alertId: UUID): ByteArray =
+        "symbol-idx::$symbol::$alertId".toByteArray(StandardCharsets.UTF_8)
   }
 
   fun getDb(shardName: String): RocksDB {
@@ -40,29 +46,45 @@ class RocksDbService(
 
   fun saveAlert(shardName: String, alert: Alert) {
     val db = getDb(shardName)
-    val alertIdBytes = alert.id.toString().toByteArray(StandardCharsets.UTF_8)
-    val alertJsonBytes = objectMapper.writeValueAsBytes(alert)
+    val alertKey = getAlertKey(alert.id)
+    val alertValue = objectMapper.writeValueAsBytes(alert)
+    val indexKey = getSymbolIndexKey(alert.stockSymbol, alert.id)
 
-    // Primary key write
-    db.put(alertIdBytes, alertJsonBytes)
-
-    // Secondary index write (symbol -> alertId)
-    val symbolIndexKey = getSymbolIndexKey(alert.stockSymbol, alert.id.toString())
-    db.put(symbolIndexKey, alertIdBytes)
+    db.put(alertKey, alertValue)
+    db.put(indexKey, alertKey)
   }
 
-  fun getAlert(shardName: String, alertId: String): Alert? {
+  fun deleteAlert(shardName: String, alert: Alert) {
     val db = getDb(shardName)
-    val alertBytes = db.get(alertId.toByteArray(StandardCharsets.UTF_8))
-    return if (alertBytes != null) {
-      objectMapper.readValue(alertBytes, Alert::class.java)
-    } else {
-      null
-    }
+    val alertKey = getAlertKey(alert.id)
+    val indexKey = getSymbolIndexKey(alert.stockSymbol, alert.id)
+    db.delete(indexKey)
+    db.delete(alertKey)
+    logger.info("[{}] Deleted alert {} from RocksDB.", shardName, alert.getLogKey())
   }
 
-  private fun getSymbolIndexKey(symbol: String, alertId: String): ByteArray {
-    return "$SYMBOL_INDEX_PREFIX$symbol::$alertId".toByteArray(StandardCharsets.UTF_8)
+  fun getAlert(shardName: String, alertId: UUID): Alert? {
+    val db = getDb(shardName)
+    val alertKey = getAlertKey(alertId)
+    val alertBytes = db.get(alertKey)
+    return if (alertBytes != null) objectMapper.readValue(alertBytes, Alert::class.java) else null
+  }
+
+  fun getAllAlerts(shardName: String): List<Alert> {
+    val db = getDb(shardName)
+    val alerts = mutableListOf<Alert>()
+    db.newIterator().use { iter ->
+      iter.seek(ALERT_PREFIX)
+      while (iter.isValid && iter.key().startsWith(ALERT_PREFIX)) {
+        try {
+          alerts.add(objectMapper.readValue(iter.value(), Alert::class.java))
+        } catch (e: Exception) {
+          logger.error("Failed to deserialize alert during scan for shard {}", shardName, e)
+        }
+        iter.next()
+      }
+    }
+    return alerts
   }
 
   @PreDestroy
@@ -70,13 +92,13 @@ class RocksDbService(
     logger.info("Closing all RocksDB instances...")
     dbs.values.forEach { it.close() }
     dbs.clear()
-    // Delete directories if test
-    if (rocksDbConfig.basePath.contains("kite_alerts_test")) {
-      val dbPath = File(rocksDbConfig.basePath)
-      // delete all directories inside
-      dbPath.listFiles()?.forEach { file ->
-        if (file.isDirectory) file.deleteRecursively() else file.delete()
-      }
+  }
+
+  private fun ByteArray.startsWith(prefix: ByteArray): Boolean {
+    if (prefix.size > this.size) return false
+    for (i in prefix.indices) {
+      if (this[i] != prefix[i]) return false
     }
+    return true
   }
 }

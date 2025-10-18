@@ -22,6 +22,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
 import org.springframework.jms.core.JmsTemplate
 import org.springframework.jms.support.converter.MessageConverter
+import org.springframework.test.annotation.DirtiesContext
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.TestPropertySource
 import vivek.example.kite.ams.shard.AmsTestConfig
@@ -34,7 +35,8 @@ import vivek.example.kite.tickprocessor.model.TickData
 @TestPropertySource(locations = ["classpath:application-test.yml"])
 @Import(AmsTestConfig::class)
 @TestInstance(TestInstance.Lifecycle.PER_METHOD)
-class JmsTopicIntegrationTests {
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+class JmsTopicIntegrationTests : BaseIntegrationTest() {
 
   private val logger = LoggerFactory.getLogger(javaClass)
 

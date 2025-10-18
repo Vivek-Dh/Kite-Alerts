@@ -27,7 +27,7 @@ class AlertMatchingService(
   fun processMessageForShard(window: AggregatedLHWindow, shard: Shard) {
     val symbol = window.symbol
     val threadName = Thread.currentThread().name
-    logger.info(
+    logger.debug(
         "Shard : [{}] -> Processing message for '{}' on thread '{}'",
         shard.name,
         symbol,
@@ -102,21 +102,11 @@ class AlertMatchingService(
       alerts: SymbolAlertsContainer
   ): Set<UUID> {
     val triggered = mutableSetOf<UUID>()
-    // GTE alerts: priceThreshold <= highPrice
-    alerts.upperBoundAlerts.headMap(highPrice, true).values.forEach { alertDetails ->
-      alertDetails.forEach { detail ->
-        if (detail.conditionType == ConditionType.GTE) {
-          triggered.add(detail.id)
-        }
-      }
+    alerts.upperBoundAlerts.headMap(highPrice, true).values.flatten().forEach { detail ->
+      if (detail.conditionType == ConditionType.GTE) triggered.add(detail.id)
     }
-    // GT alerts: priceThreshold < highPrice
-    alerts.upperBoundAlerts.headMap(highPrice, false).values.forEach { alertDetails ->
-      alertDetails.forEach { detail ->
-        if (detail.conditionType == ConditionType.GT) {
-          triggered.add(detail.id)
-        }
-      }
+    alerts.upperBoundAlerts.headMap(highPrice, false).values.flatten().forEach { detail ->
+      if (detail.conditionType == ConditionType.GT) triggered.add(detail.id)
     }
     return triggered
   }
@@ -126,21 +116,11 @@ class AlertMatchingService(
       alerts: SymbolAlertsContainer
   ): Set<UUID> {
     val triggered = mutableSetOf<UUID>()
-    // LTE alerts: priceThreshold >= lowPrice
-    alerts.lowerBoundAlerts.tailMap(lowPrice, true).values.forEach { alertDetails ->
-      alertDetails.forEach { detail ->
-        if (detail.conditionType == ConditionType.LTE) {
-          triggered.add(detail.id)
-        }
-      }
+    alerts.lowerBoundAlerts.tailMap(lowPrice, true).values.flatten().forEach { detail ->
+      if (detail.conditionType == ConditionType.LTE) triggered.add(detail.id)
     }
-    // LT alerts: priceThreshold > lowPrice
-    alerts.lowerBoundAlerts.tailMap(lowPrice, false).values.forEach { alertDetails ->
-      alertDetails.forEach { detail ->
-        if (detail.conditionType == ConditionType.LT) {
-          triggered.add(detail.id)
-        }
-      }
+    alerts.lowerBoundAlerts.tailMap(lowPrice, false).values.flatten().forEach { detail ->
+      if (detail.conditionType == ConditionType.LT) triggered.add(detail.id)
     }
     return triggered
   }
@@ -173,6 +153,10 @@ class AlertMatchingService(
         return@forEach
       }
 
+      // CRITICAL FIX: DO NOT mutate the L1 cache directly.
+      // The deactivation will flow through the L3 -> L2 -> L1 pipeline.
+      // shard.cache.removeAlert(alertId) // This line is now removed.
+
       val triggeredPrice = triggerDetails[alertId] ?: BigDecimal.ZERO
       val event =
           TriggeredAlertEvent(
@@ -191,12 +175,12 @@ class AlertMatchingService(
         message
       }
       logger.info(
-          "[{}] Published TriggeredAlertEvent for alertId: {}, userId: {} and window: {}",
+          "[{}] Published TriggeredAlertEvent for {} - alertId: {}, userId: {} and window: {}",
           shard.name,
+          alert.id,
           alert.alertId,
           alert.userId,
           window)
-      shard.cache.removeAlert(alertId)
     }
   }
 }

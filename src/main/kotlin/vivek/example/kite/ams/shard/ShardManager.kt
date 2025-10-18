@@ -91,6 +91,10 @@ class ShardManager(
     return shards[shardName]
   }
 
+  fun getAllAssignments(): Map<String, List<String>> {
+    return if (this::assignments.isInitialized) assignments else emptyMap()
+  }
+
   private fun registerListenerForShard(shard: Shard, concurrency: String) {
     val endpointId = "ams-shard-listener-${shard.name}"
     val endpoint = SimpleJmsListenerEndpoint()
