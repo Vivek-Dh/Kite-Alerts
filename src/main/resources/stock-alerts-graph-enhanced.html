@@ -366,13 +366,14 @@
         while (pane.children.length > 20) { pane.lastElementChild.remove(); }
 
         const toast = document.querySelector('#latest-alert-toast');
-        toast.innerHTML = `<span class="w-2 h-2 rounded-full" style="background:${color}"></span><span class="mono font-semibold text-xs" style="color:${color}">${stockSymbol}</span><span class="text-xs text-gray-600 dark:text-gray-300">triggered at ₹${triggeredPrice.toFixed(2)}</span>`;
 
         const isDark = document.documentElement.classList.contains('dark');
         const [r, g, b] = color.match(/\w\w/g).map(x => parseInt(x, 16));
         toast.style.setProperty('--toast-glow-color', `rgba(${r}, ${g}, ${b}, 0.6)`);
-        toast.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${isDark ? 0.2 : 0.1})`;
+        toast.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${isDark ? 0.5 : 0.1})`;
         toast.style.borderColor = `rgba(${r}, ${g}, ${b}, ${isDark ? 0.5 : 0.3})`;
+
+        toast.innerHTML = `<span class="w-2 h-2 rounded-full" style="background:${color}"></span><span class="mono font-semibold text-xs" style="color:${color}">${stockSymbol}</span><span class="text-xs ${isDark ? 'text-white' : 'text-gray-600'}">triggered at ₹${triggeredPrice.toFixed(2)}</span>`;
 
         toast.classList.remove('latest-alert-hidden', 'toast-attention');
         toast.classList.add('latest-alert-visible');
